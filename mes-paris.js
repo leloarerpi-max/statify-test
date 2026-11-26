@@ -225,7 +225,7 @@
         if (!b.date || !jours.includes(b.date)) return;
         const [p, q] = cotes(b.match); if (!p || !q) return;
         if (!((pareil(p, x.h.n) && pareil(q, x.a.n)) || (pareil(p, x.a.n) && pareil(q, x.h.n)))) return;
-        out.push(evalBasket(b, x));
+        const r = evalBasket(b, x); if (b.status === 'Won') { r.e = 'won'; r.need = ''; } else if (b.status === 'Lost') { r.e = 'lost'; r.need = ''; } out.push(r);
       });
       return out;
     } catch (e) { return []; }
@@ -587,8 +587,9 @@
       const b = S[SP()][i]; retirerDuCombine(S, b); S[SP()].splice(i, 1);
     }, 'Pari supprimé');
   }
-  function regler(id, res) {
-    muter(S => { const b = S[SP()].find(x => String(x.id) === String(id)); if (b) b.status = b.status === res ? 'Pending' : res; }, res === 'Won' ? 'Marqué gagné' : 'Marqué perdu');
+  function regler(id, res, sp) {
+    sp = sp || SP();
+    muter(S => { const b = (S[sp] || []).find(x => String(x.id) === String(id)); if (b) b.status = b.status === res ? 'Pending' : res; }, res === 'Won' ? 'Marqué gagné' : 'Marqué perdu');
   }
 
   /* ---------- Combinés : créer / modifier la mise / défaire / supprimer ---------- */
@@ -1462,9 +1463,9 @@
       const titre = m && (live || fini) && m.hs != null && m.as != null ? `${esc(m.hn)} ${+m.hs || 0} – ${+m.as || 0} ${esc(m.an)}` : esc(String(b.match || '').replace(/\s+vs\.?\s+/i, ' – '));
       let need = ''; if (k === 'football' && m && e === 'live') { try { const n = besoin(b, m); if (n) need = ` <span class="pz-ned">· ${esc(n)}</span>`; } catch (er) {} }
       const [pc, pt] = PILL[e] || PILL.pre;
-      return `<div class="pz-tr" data-pz="mpsp" data-k="${k}" title="Ouvrir ${esc(lab.toLowerCase())}"><span>${badge(k, emo, lab)}</span><span class="mut pz-trd">${heure}</span><b class="pz-trm">${titre}</b><span class="pz-trp">${esc(b.prono || '')}${need}</span><b class="pz-tro">${cote(b.odds)}</b><span class="mut pz-trs">${(+b.stake || 0).toString().replace('.', ',')} €</span><span><i class="pz-pl pz-pl-${pc}">${pt}</i></span><span class="pz-trt">${cb ? `<i class="pz-cbt">Combiné ${cb}</i>` : '<small class="mut">simple</small>'}</span></div>`;
+      return `<div class="pz-tr" data-pz="mpsp" data-k="${k}" title="Ouvrir ${esc(lab.toLowerCase())}"><span>${badge(k, emo, lab)}</span><span class="mut pz-trd">${heure}</span><b class="pz-trm">${titre}</b><span class="pz-trp">${esc(b.prono || '')}${need}</span><b class="pz-tro">${cote(b.odds)}</b><span class="mut pz-trs">${(+b.stake || 0).toString().replace('.', ',')} €</span><span class="pz-etc"><i class="pz-pl pz-pl-${pc}">${pt}</i></span><span class="pz-gp2"><button type="button" class="pz-gw${b.status === 'Won' ? ' on' : ''}" data-pz="twon" data-sp="${k}" data-id="${esc(b.id)}" title="Marquer gagné">G</button><button type="button" class="pz-gx${b.status === 'Lost' ? ' on' : ''}" data-pz="tlost" data-sp="${k}" data-id="${esc(b.id)}" title="Marquer perdu">P</button></span><span class="pz-trt">${cb ? `<i class="pz-cbt">Combiné ${cb}</i>` : '<small class="mut">simple</small>'}</span></div>`;
     };
-    const tete = '<div class="pz-tr pz-trh"><span>SPORT</span><span>HEURE / ÉTAT</span><span>MATCH</span><span>PARI</span><span>COTE</span><span>MISE</span><span>ÉTAT</span><span>TYPE</span></div>';
+    const tete = '<div class="pz-tr pz-trh"><span>SPORT</span><span>HEURE / ÉTAT</span><span>MATCH</span><span>PARI</span><span>COTE</span><span>MISE</span><span>ÉTAT</span><span>G / P</span><span>TYPE</span></div>';
     const tri = (a, b) => ((b.it.m && b.it.m.st === 'in') - (a.it.m && a.it.m.st === 'in')) || String((a.it.m && a.it.m.d) || a.it.b.date || '').localeCompare(String((b.it.m && b.it.m.d) || b.it.b.date || ''));
     let corps = '';
     if (page === 'cours') {
@@ -2343,12 +2344,15 @@
   }
   @media (max-width:700px){.pz-big{grid-template-columns:1fr 1fr}.pz-big .pz-sit{grid-column:1/-1;flex-direction:row!important;align-items:center;justify-content:space-between}.pz-big .pz-k b{font-size:17px}.pz-big .pz-main b{font-size:32px}.pz-big .pz-k{padding:9px 10px}.pz-big .pz-k span{font-size:9.5px}.pz-big .pz-main{grid-column:1/-1}.pz-note{display:none}.pz-grid{grid-template-columns:1fr}}`;
   const st = document.createElement('style'); st.textContent = css + `
-  .pz-tr{display:grid;grid-template-columns:78px 128px minmax(150px,1.4fr) minmax(120px,1.2fr) 50px 52px 92px 84px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;font-size:13px}
+  .pz-tr{display:grid;grid-template-columns:70px 104px minmax(120px,1.4fr) minmax(90px,1.2fr) 46px 48px 88px 60px 72px;gap:8px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;font-size:13px}
   .pz-tr:hover{background:color-mix(in srgb,var(--ok) 6%,transparent)}.pz-trh{cursor:default;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--mut);background:var(--field);border-top:0}.pz-trh:hover{background:var(--field)}
   .pz-trc{grid-template-columns:90px 1fr auto}.pz-trm,.pz-trp{min-width:0;overflow:hidden;text-overflow:ellipsis}.pz-tro{text-align:right}.pz-trs{text-align:right}
   .pz-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#d03a2a;margin-right:6px}.pz-ned{color:#9a6400;font-size:12px}
   .pz-pl{font-style:normal;font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--field);color:var(--mut)}
   .pz-pl-ok,.pz-pl-win{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}.pz-pl-wt{background:color-mix(in srgb,#e0a010 20%,transparent);color:#9a6400}.pz-pl-lost{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+  .pz-etc{display:flex;align-items:center;gap:6px}.pz-gp2{display:inline-flex;gap:3px}
+  .pz-tr .pz-gp2 button{width:26px;height:26px;padding:0!important;border-radius:8px!important;border:1px solid var(--line)!important;background:var(--card)!important;background-image:none!important;color:var(--mut)!important;font:inherit;font-size:12px;font-weight:800;cursor:pointer;line-height:1;box-shadow:none!important;min-height:0!important}
+  .pz-tr .pz-gp2 .pz-gw{border-color:color-mix(in srgb,var(--ok) 55%,transparent)!important;color:var(--ok)!important;background:color-mix(in srgb,var(--ok) 10%,transparent)!important}.pz-tr .pz-gp2 .pz-gx{border-color:color-mix(in srgb,var(--bad) 55%,transparent)!important;color:var(--bad)!important;background:color-mix(in srgb,var(--bad) 10%,transparent)!important}.pz-tr .pz-gp2 .pz-gw:hover,.pz-tr .pz-gp2 .pz-gw.on{background:var(--ok)!important;border-color:var(--ok)!important;color:#fff!important}.pz-tr .pz-gp2 .pz-gx:hover,.pz-tr .pz-gp2 .pz-gx.on{background:var(--bad)!important;border-color:var(--bad)!important;color:#fff!important}
   .pz-cbt{font-style:normal;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,#2f7de1 16%,transparent);color:#2f7de1;white-space:nowrap}
   .pz-kcs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
   .pz-kc{background:var(--card);border-radius:16px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line)}.pz-kc>span{font-size:12px;font-weight:600;color:var(--mut)}.pz-kc>b{font-size:22px;font-weight:800}.pz-kc small{font-size:11.5px;color:var(--mut)}
@@ -2358,7 +2362,7 @@
   .pz-sb{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:7px;white-space:nowrap;background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
   .pz-sb-basketball{background:color-mix(in srgb,#e07a1a 18%,transparent);color:#c0610f}.pz-sb-tennis{background:color-mix(in srgb,#8a3fb0 16%,transparent);color:#8a3fb0}
   @media (max-width:1099px){.pz-tous2{grid-template-columns:minmax(0,1fr)}.pz-kcs{grid-template-columns:1fr 1fr}}
-  @media (max-width:700px){.pz-trh{display:none}.pz-tr{grid-template-columns:auto 1fr auto;grid-template-areas:'b d s' 'm m m' 'p o k';row-gap:4px}.pz-tr>:nth-child(1){grid-area:b}.pz-tr>:nth-child(2){grid-area:d}.pz-tr>:nth-child(7){grid-area:s;justify-self:end}.pz-tr>:nth-child(3){grid-area:m;white-space:normal}.pz-tr>:nth-child(4){grid-area:p}.pz-tr>:nth-child(5){grid-area:o}.pz-tr>:nth-child(6){grid-area:k}.pz-tr>:nth-child(8){display:none}.pz-trc{grid-template-columns:auto 1fr auto}}
+  @media (max-width:700px){.pz-trh{display:none}.pz-tr{grid-template-columns:auto 1fr auto;grid-template-areas:'b d s' 'm m m' 'p o k' 'g g g';row-gap:4px}.pz-tr>:nth-child(1){grid-area:b}.pz-tr>:nth-child(2){grid-area:d}.pz-tr>:nth-child(7){grid-area:s;justify-self:end}.pz-etc{flex-wrap:wrap;justify-content:flex-end}.pz-tr>:nth-child(3){grid-area:m;white-space:normal}.pz-tr>:nth-child(4){grid-area:p}.pz-tr>:nth-child(5){grid-area:o}.pz-tr>:nth-child(6){grid-area:k}.pz-tr>:nth-child(8){grid-area:g;justify-self:end}.pz-tr>:nth-child(9){display:none}.pz-trc{grid-template-columns:auto 1fr auto}}
   .pz-add{margin-left:auto;font-size:12px}.pz-add+.pz-all{margin-left:10px}
   .pz-act{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.pz-ib{padding:3px 9px!important;font-size:12px!important;border-radius:10px!important;box-shadow:none!important}
   .pz-onw{background:color-mix(in srgb,var(--ok) 22%,transparent)!important;color:var(--ok)!important;border-color:var(--ok)!important}.pz-onl{background:color-mix(in srgb,var(--bad) 20%,transparent)!important;color:var(--bad)!important;border-color:var(--bad)!important}
@@ -2421,6 +2425,8 @@
       else if (k === 'cancel') fermer();
       else if (k === 'save') enregistrer(z.dataset.id);
       else if (k === 'del') supprimerPari(id);
+      else if (k === 'twon') regler(id, 'Won', z.dataset.sp);
+      else if (k === 'tlost') regler(id, 'Lost', z.dataset.sp);
       else if (k === 'won') regler(id, 'Won');
       else if (k === 'lost') regler(id, 'Lost');
       else if (k === 'selclear') { sel = new Set(); decorer(); }
