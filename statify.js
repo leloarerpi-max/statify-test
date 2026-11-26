@@ -3120,7 +3120,7 @@ function liveItem(kind,lg,e){
   const it={k:kind,lg,id:String(e.id),st:st.state||'pre',done:!!st.completed,sn,per,h:side(h),a:side(a),t:Date.now(),d:e.date,lab:kind==='n'?nLbl(sn,clk,per,st.shortDetail):fLbl(sn,clk,per,st.shortDetail)};
   if(kind==='f'){ it.ev=(c.details||[]).filter(x=>(x.scoringPlay||x.redCard)&&!x.shootout).map(x=>{ const ai=(x.athletesInvolved||[])[0]||{}, tid=String((x.team||{}).id||'');
       return {g:!!x.scoringPlay,rc:!!x.redCard&&!x.scoringPlay,og:!!x.ownGoal,pg:!!x.penaltyKick,m:(x.clock&&x.clock.displayValue)||'',p:ai.shortName||ai.displayName||'',s:tid===it.h.id?'h':tid===it.a.id?'a':''}; }); }
-  else { const tp=x=>{ const l=(x.leaders||[]).find(y=>y.name==='points'), t=l&&l.leaders&&l.leaders[0]; return t&&t.athlete?(t.athlete.shortName||t.athlete.displayName)+' '+(t.displayValue||'')+' pts':''; }; it.h.top=tp(h); it.a.top=tp(a); }
+  else { const tp=x=>{ const l=(x.leaders||[]).find(y=>y.name==='points'), t=l&&l.leaders&&l.leaders[0]; return t&&t.athlete?(t.athlete.shortName||t.athlete.displayName)+' '+(t.displayValue||'')+' pts':''; }; it.h.top=tp(h); it.a.top=tp(a); const lsx=c=>(c.linescores||[]).map(z=>+z.value||0); it.ls={h:lsx(h),a:lsx(a)}; }
   if(kind==='f'){   // tirs au but : score de la séance (shootoutScore) et chaque tir (reussi / manqué) ; affichés seulement s'il y en a
     const k=(c.details||[]).filter(x=>x.shootout).map(x=>{ const tid=String((x.team||{}).id||''); return {s:tid===it.h.id?'h':tid===it.a.id?'a':'',ok:!!x.scoringPlay}; }).filter(z=>z.s);
     const sp=t=>(t&&t.shootoutScore!=null&&t.shootoutScore!=='')?+t.shootoutScore:null; let ph=sp(h), pa=sp(a);
@@ -3203,7 +3203,7 @@ function liveFootRow(x,mine,rk,go,fl,barHtml,lg,rich){
 /* score qui bascule (panneau de stade) : l'ancien chiffre part vers le haut, le nouveau arrive par le bas puis grossit */
 const mxReduce=()=>{ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } };
 const mxFlipHtml=(o,n,slow)=>`<span class="mxflip anim${slow?' slow':''}"><i class="o">${o}</i><i class="n">${n}</i></span>`;
-function mxScoreHtml(x){ const m=liveMem['f'+x.id], now=Date.now();
+function mxScoreHtml(x){ const m=liveMem[x.k+x.id], now=Date.now();
   if(!mxReduce()&&m&&m.sd&&!m.vd&&now-m.chg<5000){ const [oh,oa]=String(m.old||'').split('-').map(Number);
     const h=!isNaN(oh)&&oh!==x.h.s?mxFlipHtml(oh,x.h.s):x.h.s, a=!isNaN(oa)&&oa!==x.a.s?mxFlipHtml(oa,x.a.s):x.a.s; return h+'<small> – </small>'+a; }
   return x.h.s+'<small> – </small>'+x.a.s; }
@@ -3217,8 +3217,8 @@ function mxFlipDom(el,old,x,sd,slow){ if(!el||!old||mxReduce()) return; const [o
 /* paris qui basculent pendant un match : « Ton pari repasse ! » / « ne passe plus » */
 function mxBetWatch(){
   if(ui.sport!=='foot') return;
-  for(const x of (liveData.items||[])){ if(x.k!=='f'||x.st!=='in') continue;
-    for(const b of mxBets(x.id)){ const k=x.id+':'+(b.id||b.prono), good=b.e==='ok'||b.e==='won', bad=b.e==='live', o=mxBetSt[k]; mxBetSt[k]=good?'g':bad?'b':'n';
+  for(const x of (liveData.items||[])){ if((x.k!=='f'&&x.k!=='n')||x.st!=='in') continue;
+    for(const b of mxBetsX(x)){ const k=x.id+':'+(b.id||b.prono), good=b.e==='ok'||b.e==='won', bad=b.e==='live', o=mxBetSt[k]; mxBetSt[k]=good?'g':bad?'b':'n';
       if(!o||o===mxBetSt[k]||o==='n') continue;
       if(good) mxToast(true,b.combo?'Ton combiné repasse !':'Ton pari repasse !',`${esc(b.prono)} · ${esc(x.h.n)} ${x.h.s}-${x.a.s} ${esc(x.a.n)}`);
       else if(bad&&o==='g') mxToast(false,b.combo?'Ton combiné ne passe plus':'Ton pari ne passe plus',`${esc(b.prono)} · ${esc(x.h.n)} ${x.h.s}-${x.a.s} ${esc(x.a.n)}${b.need?' · il faut '+esc(b.need):''}`); } } }
@@ -3305,6 +3305,7 @@ function mxPush(x){ const H=mxHist[x.id]; if(!H||H.length<2) return ''; const no
   if(da>=3&&da>=2*Math.max(1,dh)) return `<b>${esc(x.a.n)} pousse</b> : ${da} tirs à ${dh} sur les ${min} dernières minutes`;
   return `Match ouvert : ${dh} tirs à ${da} sur les ${min} dernières minutes`; }
 // paris du match (fournis par mes-paris.js)
+function mxBetsX(x){ try{ if(x.k==='n') return typeof window.pzParisBasket==='function'?window.pzParisBasket(x):[]; return mxBets(x.id); }catch(e){ return []; } }
 function mxBets(id){ try{ return typeof window.pzParisMatch==='function'?window.pzParisMatch(id):[]; }catch(e){ return []; } }
 const MXB={won:['ok','gagné'],ok:['ok','ça passe'],live:['wt','ne passe pas pour l\'instant'],pre:['wt','en attente'],end:['wt','à vérifier'],lost:['ko','perdu'],nf:['wt','en attente'],rep:['wt','reporté']};
 function mxRichRow(x,mine,rk,go,fl,barHtml,lg,lastHtml){
@@ -3353,8 +3354,28 @@ function mxInfo(x){ const now=Date.now(), oc=mxOcc[x.id];
   if(/HALFTIME/.test(x.sn||'')){ const t0=liveMem['ht'+x.id]||now, left=Math.max(0,15-Math.floor((now-t0)/6e4)); return `<div class="mxc-in ht">Mi-temps · ${left?'reprise dans '+left+' min':'reprise imminente'}</div>`; }
   const fd=mxFeed[x.id]; if(fd&&fd.items&&fd.items.length){ const z=fd.items[0]; return `<div class="mxc-in fil"><b>LIVE</b><span>${esc(z.m)} ${esc(z.t)}</span></div>`; }
   const pu=mxPush(x); return pu?`<div class="mxc-in">${pu}</div>`:''; }
-function mxBetLines(x){ return mxBets(x.id).map(b=>{ const z=MXB[b.e]||['wt','en attente'];
-  return `<div class="mxc-bet ${z[0]}"><i></i><span class="t"><b>${esc(b.prono||'Pari')}</b>${b.odds?' · '+String(b.odds).replace('.',','):''}${b.combo?' · combiné':''}${b.need&&z[0]==='wt'?' · <b>'+esc(b.need)+'</b>':''}</span><b class="e">${z[1]}</b></div>`; }).join(''); }
+function mxBetBand(x){ const bets=mxBetsX(x);
+  if(!bets.length) return '<div class="mxc-bet no"><i></i><em>PARI</em><span class="t"><b>Pas de pari sur ce match</b></span></div>';
+  return bets.map(b=>{ const z=MXB[b.e]||['wt','en attente'], dr=String(z[0]==='wt'?(b.need||z[1]):(b.note||z[1])).replace(/(\d)\.(\d)/g,'$1,$2');
+    return `<div class="mxc-bet ${z[0]}"><i></i><em>PARI</em><span class="t"><b>${esc(b.prono||'Pari')}${b.odds?' · '+String(b.odds).replace('.',','):''}</b>${b.combo?' · combiné':''}</span><b class="e">${esc(dr)}</b></div>`; }).join(''); }
+const mxBetLines=mxBetBand;
+// carte basket (NBA) : même style que le foot, quarts-temps à la place de la barre des minutes
+const nbaShort=n=>{ n=String(n||''); const m=/^(New York|Los Angeles|San Antonio|Golden State|Oklahoma City|New Orleans) /.exec(n); return m?n.slice(m[0].length):n.includes(' ')?n.slice(n.indexOf(' ')+1):n; };
+function mxPillN(x){ return x.st==='pre'?`<span class="mxc-pl pre">${esc(parisT(x.d))}</span>`:x.st==='post'||x.done?'<span class="mxc-pl fin">Fin</span>':/HALFTIME/.test(x.sn||'')?'<span class="mxc-pl ht">MT</span>':`<span class="mxc-pl"><i></i>${esc(x.lab||'En cours')}</span>`; }
+function mxQBars(x){ const per=+x.per||0, ls=x.ls||{h:[],a:[]}, n=Math.max(4,per), names=Array.from({length:n},(_,i)=>i<4?'Q'+(i+1):'P'+(i-3));
+  const bars='<div class="mxq">'+names.map((q,i)=>`<div><i class="${i<per||x.st==='post'?'on':''}"></i><small>${q}</small></div>`).join('')+'</div>';
+  const det=names.map((q,i)=>ls.h[i]!=null&&(i<per||x.st==='post')?`${q} ${ls.h[i]}-${ls.a[i]}`:'').filter(Boolean).join(' · ');
+  const d=x.h.s-x.a.s, lead=d===0?'égalité':(d>0?x.h.id:x.a.id)+' +'+Math.abs(d);
+  return bars+`<div class="mxq-d"><span>${esc(det)}</span><b>${x.st==='pre'?'':lead}</b></div>`; }
+function mxBasketCard(x,go,fl){
+  const lo=s=>`<span class="lm-lg">${teamLogo(s.id,22)}</span>`, pre=x.st==='pre';
+  return `<div class="mxc mxbk${fl}"${go}>
+    <div class="mxc-hd"><span class="mxsb n">BASKET</span><span>NBA</span></div>
+    <div class="mxc-tp"><span class="mxc-tm">${lo(x.h)}<b>${esc(nbaShort(x.h.n))}</b></span><span class="mxc-sc"><b>${pre?'–':mxScoreHtml(x)}</b>${mxPillN(x)}</span><span class="mxc-tm r"><b>${esc(nbaShort(x.a.n))}</b>${lo(x.a)}</span></div>
+    ${pre?'':mxQBars(x)}${mxBetBand(x)}</div>`; }
+function mxBasketRow(x,go,fl){
+  const lo=s=>`<span class="lm-lg">${teamLogo(s.id,16)}</span>`, pre=x.st==='pre';
+  return `<div class="mxl-r${fl}"${go}><div class="mxl-m">${mxPillN(x)}</div><div class="mxl-t"><div>${lo(x.h)}<b>${esc(nbaShort(x.h.n))}</b></div><div>${lo(x.a)}<b>${esc(nbaShort(x.a.n))}</b></div></div><div class="mxl-s">${pre?'':`<b>${x.h.s}</b><b>${x.a.s}</b>`}</div><span></span>${mxBetBand(x)}</div>`; }
 function mxScorers(x,sd){ return (x.ev||[]).filter(e=>e.s===sd).map(e=>e.rc?`<i class="mxrc"></i> ${esc(e.p||'')}`:`${esc(e.p||'?')} ${esc(e.m)}${e.og?' (csc)':e.pg?' (pen.)':''}`).join(' · '); }
 function mxCompact(x,go,fl){
   const lo=s=>`<span class="lm-lg">${footLogo(s.l,22)||esc(String(s.n||'?').slice(0,2).toUpperCase())}</span>`, pre=x.st==='pre', oc=mxOcc[x.id], occ=oc&&Date.now()-oc.t<12000;
@@ -3362,16 +3383,17 @@ function mxCompact(x,go,fl){
   const st=!pre&&(ph!=null||S(x.h,'totalShots')!=null)?`<div class="mxc-st">${ph!=null?`<span>Poss. <b>${Math.round(+ph)}-${Math.round(+S(x.a,'possessionPct')||0)}</b></span>`:''}<span>Tirs <b>${S(x.h,'totalShots')??0} (${S(x.h,'shotsOnTarget')??0}) · ${S(x.a,'totalShots')??0} (${S(x.a,'shotsOnTarget')??0})</b></span><span>Corners <b>${S(x.h,'wonCorners')??0}-${S(x.a,'wonCorners')??0}</b></span></div>`:'';
   const sh=mxScorers(x,'h'), sa=mxScorers(x,'a');
   return `<div class="mxc${fl}${occ?' occ':''}" style="${tcStyle(x.h.c)}"${go}>
+    <div class="mxc-hd"><span class="mxsb f">FOOT</span><span>${esc(footLgName(x.lg))}</span></div>
     <div class="mxc-tp"><span class="mxc-tm">${lo(x.h)}<b>${esc(x.h.n)}</b></span><span class="mxc-sc"><b>${pre?'–':mxScoreHtml(x)}</b>${mxPill(x)}</span><span class="mxc-tm r"><b>${esc(x.a.n)}</b>${lo(x.a)}</span></div>
-    ${pre?'':liveBarHtml(x)}${sh||sa?`<div class="mxc-ev"><span>${sh?'⚽ '+sh:''}</span><span class="r">${sa?sa+' ⚽':''}</span></div>`:''}${st}${mxInfo(x)}${mxBetLines(x)}</div>`; }
+    ${pre?'':liveBarHtml(x)}${sh||sa?`<div class="mxc-ev"><span>${sh?'⚽ '+sh:''}</span><span class="r">${sa?sa+' ⚽':''}</span></div>`:''}${st}${mxInfo(x)}${mxBetBand(x)}</div>`; }
 function mxListRow(x,go,fl){
   const lo=s=>`<span class="lm-lg">${footLogo(s.l,16)||''}</span>`, pre=x.st==='pre', oc=mxOcc[x.id], occ=oc&&Date.now()-oc.t<12000;
-  const bets=mxBets(x.id), bz=bets.map(b=>(MXB[b.e]||['wt'])[0]), dot=!bets.length?'':bz.includes('ko')?'ko':bz.every(z=>z==='ok')?'ok':'wt';
+  const bets=mxBetsX(x), bz=bets.map(b=>(MXB[b.e]||['wt'])[0]), dot=!bets.length?'':bz.includes('ko')?'ko':bz.every(z=>z==='ok')?'ok':'wt';
   const info=mxInfo(x).replace(/<\/?div[^>]*>/g,'');
   return `<div class="mxl-r${fl}${occ?' occ':''}" style="${tcStyle(x.h.c)}"${go}>
     <div class="mxl-m">${mxPill(x)}</div>
     <div class="mxl-t"><div>${lo(x.h)}<b>${esc(x.h.n)}</b><small>${mxScorers(x,'h')}</small></div><div>${lo(x.a)}<b>${esc(x.a.n)}</b><small>${mxScorers(x,'a')}</small></div>${info?`<div class="mxl-i">${info}</div>`:''}</div>
-    <div class="mxl-s">${pre?'':`<b>${x.h.s}</b><b>${x.a.s}</b>`}</div><span class="mxl-d ${dot}"${dot?` title="${esc(bets.map(b=>b.prono).join(', '))}"`:''}></span></div>`; }
+    <div class="mxl-s">${pre?'':`<b>${x.h.s}</b><b>${x.a.s}</b>`}</div><span></span>${mxBetBand(x)}</div>`; }
 // bande « classement live » : clubs dont la place change si les scores restent ainsi
 function mxRankStrip(L){ const lgs=[...new Set(L.filter(x=>x.st==='in').map(x=>x.lg))]; let out='';
   for(const lg of lgs){ const rk=liveRank(lg); if(!rk) continue; const ch=[];
@@ -3380,27 +3402,27 @@ function mxRankStrip(L){ const lgs=[...new Set(L.filter(x=>x.st==='in').map(x=>x
     if(ch.length) out+=`<div class="mxrs"><b>Classement live · ${esc(footLgName(lg))}</b>${ch.slice(0,8).map(c=>`<span class="${c.r.nr<c.r.rank?'up':'dn'}">${esc(c.n)} ${ordFr(c.r.nr)} ${c.r.nr<c.r.rank?'▲':'▼'}${Math.abs(c.r.rank-c.r.nr)}</span>`).join('')}</div>`; }
   return out; }
 function mxItems(){ const today=todayDK();
-  return (liveData.items||[]).filter(x=>x.k==='f'&&(x.st==='in'||(Date.parse(x.d)&&parisDK(x.d)===today))); }
+  return (liveData.items||[]).filter(x=>(x.k==='f'||x.k==='n')&&(x.st==='in'||(Date.parse(x.d)&&parisDK(x.d)===today))); }
 function mxLiveHtml(){
-  const L=mxItems(), now=Date.now(), F=ui.mxF||'live';
-  const mineF=x=>ffav.includes(x.h.id)||ffav.includes(x.a.id)||nfav.foot.includes(x.h.id)||nfav.foot.includes(x.a.id)||!!mpick[x.id];
-  const betF=x=>mxBets(x.id).length>0;
-  const sets={live:L.filter(x=>x.st==='in'),mine:L.filter(mineF),bets:L.filter(betF),all:L};
-  const nr=mxNarrow(), chip=(k,t)=>`<button class="${F===k?'':'sec'} fbtn" data-act="mxf" data-f="${k}">${nr?({live:'🔴 Direct',mine:'⭐ Clubs',bets:'🎯 Paris',all:'Tous'})[k]:t} · ${sets[k].length}</button>`;
-  const live=sets.live, goals=L.reduce((n,x)=>n+(x.st==='pre'?0:x.h.s+x.a.s),0), nil=live.filter(x=>!x.h.s&&!x.a.s).length;
-  let h=`<div class="row" style="gap:6px;margin:0 0 12px;flex-wrap:wrap;align-items:center">${chip('live','🔴 En direct')}${chip('mine','⭐ Mes clubs')}${chip('bets','🎯 Mes paris')}${chip('all','Tous aujourd\'hui')}<span class="mut" style="margin-left:auto;font-size:12px">${goals} but${goals>1?'s':''}${live.length?` · ${nil} match${nil>1?'s':''} encore à 0-0`:''}</span></div>`;
-  const rank=x=>{ const c=liveMem['f'+x.id]; return (c&&c.chg&&now-c.chg<90000)?0:x.st==='in'?1:x.st==='pre'?2:3; };
-  const M=[...sets[F]].sort((a,b)=>rank(a)-rank(b)||(rank(a)===0?liveMem['f'+b.id].chg-liveMem['f'+a.id].chg:Date.parse(a.d)-Date.parse(b.d)));
+  const A=mxItems(), L=A.filter(x=>x.k==='f'), B=A.filter(x=>x.k==='n'), now=Date.now(), F=ui.mxF||'live';
+  const mineF=x=>x.k==='n'?(fav.teams.includes(x.h.id)||fav.teams.includes(x.a.id)):(ffav.includes(x.h.id)||ffav.includes(x.a.id)||nfav.foot.includes(x.h.id)||nfav.foot.includes(x.a.id)||!!mpick[x.id]);
+  const betF=x=>mxBetsX(x).length>0;
+  const sets={live:A.filter(x=>x.st==='in'),foot:L,basket:B,mine:A.filter(mineF),bets:A.filter(betF),all:A};
+  const nr=mxNarrow(), chip=(k,t)=>`<button class="${F===k?'':'sec'} fbtn" data-act="mxf" data-f="${k}">${nr?({live:'🔴 Direct',foot:'⚽ Foot',basket:'🏀 Basket',mine:'⭐ Clubs',bets:'🎯 Paris',all:'Tous'})[k]:t} · ${sets[k].length}</button>`;
+  const live=sets.live, goals=L.reduce((n,x)=>n+(x.st==='pre'?0:x.h.s+x.a.s),0), nil=live.filter(x=>x.k==='f'&&!x.h.s&&!x.a.s).length;
+  let h=`<div class="row" style="gap:6px;margin:0 0 12px;flex-wrap:wrap;align-items:center">${chip('live','🔴 En direct')}${chip('foot','⚽ Foot')}${chip('basket','🏀 Basket')}${chip('mine','⭐ Mes clubs')}${chip('bets','🎯 Mes paris')}${chip('all','Tous aujourd\'hui')}<span class="mut mxleg" style="margin-left:auto;font-size:12px">${nr?'':'Pastille verte = le pari passe · orange = pas encore · gris = pas de pari · '}${goals} but${goals>1?'s':''}${nil?` · ${nil} match${nil>1?'s':''} encore à 0-0`:''}</span></div>`;
+  const rank=x=>{ const c=liveMem[x.k+x.id]; return (c&&c.chg&&now-c.chg<90000)?0:x.st==='in'?1:x.st==='pre'?2:3; };
+  const M=[...sets[F]].sort((a,b)=>rank(a)-rank(b)||(rank(a)===0?liveMem[b.k+b.id].chg-liveMem[a.k+a.id].chg:Date.parse(a.d)-Date.parse(b.d)));
   if(!M.length) return h+`<div class="card"><p class="mut" style="margin:0">${F==='live'?(L.length?'Aucun match en cours pour l\'instant. Touche « Tous aujourd\'hui » pour voir les matchs à venir.':'Aucun match aujourd\'hui dans tes championnats.'):F==='mine'?'Aucun match de tes clubs (☆ / ⭐) ou de ta sélection aujourd\'hui.':F==='bets'?'Aucun pari en cours sur les matchs du jour.':'Aucun match aujourd\'hui.'}</p></div>`;
   const rkc={}, rkOf=l=>(l in rkc)?rkc[l]:(rkc[l]=liveRank(l));
   const mine=x=>ffav.includes(x.h.id)||ffav.includes(x.a.id);
-  const gof=x=>Object.values(foot.leagues).some(G=>G.matches[x.id])?` data-act="fmatch" data-id="${esc(x.id)}"`:'', flf=x=>(liveMem['f'+x.id]&&now-liveMem['f'+x.id].chg<30000)?' flash':'';
+  const gof=x=>x.k==='n'?` data-act="nlive" data-id="${esc(x.id)}"`:Object.values(foot.leagues).some(G=>G.matches[x.id])?` data-act="fmatch" data-id="${esc(x.id)}"`:'', flf=x=>(liveMem[x.k+x.id]&&now-liveMem[x.k+x.id].chg<30000)?' flash':'';
   if(mxNarrow()){   // écran étroit : une ligne par match, groupées par compétition
     const lgs=[...new Set(M.map(x=>x.lg))];
-    return h+lgs.map(lg=>`<div class="mxl-box"><div class="mxl-h"><b>${esc(footLgName(lg))}</b>${M.some(x=>mxBets(x.id).length)?'<span>point = ton pari</span>':''}</div>${M.filter(x=>x.lg===lg).map(x=>mxListRow(x,gof(x),flf(x))).join('')}</div>`).join('')+'<p class="mut" style="text-align:center;font-size:11.5px;margin:6px 0 0">Touche un match pour voir les stats, le fil du match et ton pari</p>';
+    return h+lgs.map(lg=>`<div class="mxl-box"><div class="mxl-h"><b>${lg==='nba'?'🏀 NBA':esc(footLgName(lg))}</b></div>${M.filter(x=>x.lg===lg).map(x=>x.k==='n'?mxBasketRow(x,gof(x),flf(x)):mxListRow(x,gof(x),flf(x))).join('')}</div>`).join('')+'<p class="mut" style="text-align:center;font-size:11.5px;margin:6px 0 0">Touche un match pour voir les stats, le fil du match et ton pari</p>';
   }
   const SEC=[[0,'⚡ Ça vient de bouger'],[1,'🔴 En cours'],[2,'⏰ À venir'],[3,'🏁 Terminés']];
-  return h+SEC.map(([r,t])=>{ const G=M.filter(x=>rank(x)===r); return G.length?`<div class="mxl">${t}</div><div class="mxgrid">${G.map(x=>mxCompact(x,gof(x),flf(x))).join('')}</div>`:''; }).join('')+mxRankStrip(L);
+  return h+SEC.map(([r,t])=>{ const G=M.filter(x=>rank(x)===r); return G.length?`<div class="mxl">${t}</div><div class="mxgrid">${G.map(x=>x.k==='n'?mxBasketCard(x,gof(x),flf(x)):mxCompact(x,gof(x),flf(x))).join('')}</div>`:''; }).join('')+mxRankStrip(L);
 }
 let mxWasNarrow=null;
 window.addEventListener('resize',()=>{ const n=mxNarrow(); if(mxWasNarrow!==null&&n!==mxWasNarrow&&ui.sport==='foot'&&ui.ftab==='multi'){ try{ render(); }catch(e){} } mxWasNarrow=n; });

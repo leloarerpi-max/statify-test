@@ -190,6 +190,46 @@
       return (_pzM.d.parMatch.get(String(id)) || []).map(({ l, combo }) => ({ id: l.b.id, prono: l.b.prono || '', odds: +l.b.odds || null, stake: +l.b.stake || 0, e: l.e, combo: !!combo, need: besoin(l.b, l.m) }));
     } catch (e) { return []; }
   };
+
+  // pour le Multiplex : les paris de basket sur un match NBA en direct (par noms d'équipes, la veille / le jour / le lendemain du pari)
+  const decN = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+  const jourPlus = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  function evalBasket(b, x) {
+    const hs = +x.h.s || 0, as = +x.a.s || 0, fini = x.st === 'post' || !!x.done, pre = x.st === 'pre';
+    const prono = String(b.prono || ''), mk = String(b.market || '').toLowerCase();
+    const bout = (ok, need, note) => ({ e: pre ? 'pre' : fini ? (ok ? 'won' : 'lost') : (ok ? 'ok' : 'live'), need: (!pre && !fini && !ok) ? need : '', note: (!pre && ok && !fini) ? note : '' });
+    const cote0 = x2 => ({ id: b.id, prono: b.prono || '', odds: +b.odds || null, stake: +b.stake || 0, combo: !!b.comboId });
+    // équipe citée dans le pronostic
+    const cote_ = pareil(prono, x.h.n) ? 'h' : pareil(prono, x.a.n) ? 'a' : '';
+    const sc = c => c === 'h' ? hs : as, ad = c => c === 'h' ? as : hs;
+    let r;
+    const tot = /(plus|moins)\s+de\s+(-?[\d.,]+)/i.exec(prono);
+    if (tot && (/total/.test(mk) || !cote_)) {   // total de points
+      const L = decN(tot[2]), T = hs + as, plus = /plus/i.test(tot[1]);
+      if (plus) r = bout(T > L, 'encore ' + Math.max(1, Math.floor(L - T) + 1) + ' pt' + (Math.floor(L - T) + 1 > 1 ? 's' : ''), 'total ' + T);
+      else { const ok = T < L; r = fini || pre ? bout(ok) : (ok ? bout(true, '', 'total ' + T) : { e: 'lost', need: '', note: '' }); }
+    } else if (cote_ && /handicap/.test(mk) || (cote_ && /[-+]\s*\d/.test(prono) && !/vainqueur/.test(mk))) {   // handicap : « Celtics -6,5 »
+      const m = /([-+−])\s*(\d+(?:[.,]\d+)?)/.exec(prono); const n = m ? (m[1] === '+' ? 1 : -1) * decN(m[2]) : 0, marge = sc(cote_) + n - ad(cote_);
+      r = bout(marge > 0, 'il manque ' + (Math.floor(-marge) + 1) + ' pt' + (Math.floor(-marge) + 1 > 1 ? 's' : ''), 'marge ' + (marge > 0 ? '+' : '') + Math.round(marge * 10) / 10);
+    } else if (cote_) {   // vainqueur (prolongations incluses)
+      const d = sc(cote_) - ad(cote_);
+      r = bout(d > 0, 'il manque ' + (-d + 1) + ' pt' + (-d + 1 > 1 ? 's' : ''), 'devant de ' + d);
+    } else r = { e: pre ? 'pre' : fini ? 'end' : 'nf', need: '', note: '' };
+    return Object.assign(cote0(), r);
+  }
+  window.pzParisBasket = x => {
+    try {
+      const L = (lire().basketball || []); if (!L.length || !x || !x.h || !x.a) return [];
+      const dj = jourDe(x.d), jours = [jourPlus(dj, -1), dj, jourPlus(dj, 1)], out = [];
+      L.forEach(b => {
+        if (!b.date || !jours.includes(b.date)) return;
+        const [p, q] = cotes(b.match); if (!p || !q) return;
+        if (!((pareil(p, x.h.n) && pareil(q, x.a.n)) || (pareil(p, x.a.n) && pareil(q, x.h.n)))) return;
+        out.push(evalBasket(b, x));
+      });
+      return out;
+    } catch (e) { return []; }
+  };
   function donnees(sport) {
     sport = sport || 'football';
     const TN = sport === 'tennis' || sport === 'basketball', trouver = b => TN ? null : trouverM(b), etat = (b, m) => TN ? (b.status === 'Won' ? 'won' : b.status === 'Lost' ? 'lost' : 'pre') : etatM(b, m);
@@ -285,7 +325,18 @@
     return `<div class="pz-band">${k('Combinés · bilan', eur(D.netC), D.netC < 0 ? 'pz-neg' : 'pz-pos', 'pz-kmain')}${k('ROI', (D.miseC ? (100 * D.netC / D.miseC).toFixed(1).replace('.', ',') : '0,0') + ' %', D.netC < 0 ? 'pz-neg' : 'pz-pos')}${k('Solo', eur(D.netS), D.netS < 0 ? 'pz-neg' : 'pz-pos')}${k('Aujourd\'hui', eur(pj), stCls(pj))}${k('Si tout passe', eur(D.siTout), 'pz-pos')}${k('En attente', D.nbAttente)}${live ? k('En direct', '🔴 ' + live) : ''}</div>`;
   }
   /* ---------- Décoration des écrans de Statify ---------- */
+  function majGlobal() {
+    const g = document.getElementById('pzGlobal'); if (!g) return;
+    { const tp = document.getElementById('pzTop'); if (tp && window.innerWidth >= 1100) document.documentElement.style.setProperty('--pztop', (tp.offsetHeight + 8) + 'px'); }
+    const on = (k, v) => { const b = g.querySelector('[data-pzg=' + k + ']'); if (b) b.classList.toggle('on', !!v); };
+    const vue = !!window.__pzVue, ml = typeof ui !== 'undefined' && ui.sport === 'foot' && ui.ftab === 'multi';
+    on('multi', !vue && ml); on('paris', vue && filtre !== 'analyse'); on('analyse', vue && filtre === 'analyse');
+    const bad = (k, n, titre) => { const b = g.querySelector('[data-pzg=' + k + ']'); if (!b) return; let e = b.querySelector('.pz-badge'); if (!n) { if (e) e.remove(); return; } if (!e) { e = document.createElement('em'); e.className = 'pz-badge'; b.appendChild(e); } e.title = titre; if (e.textContent !== String(n)) e.textContent = n; };
+    try { const nl = (typeof liveData !== 'undefined' && liveData.items ? liveData.items : []).filter(x => x.k === 'f' && x.st === 'in').length; bad('multi', nl, 'Matchs en direct'); } catch (e) {}
+    try { const S = lireN(); bad('paris', ['football', 'basketball', 'tennis'].reduce((t, k) => t + (S[k] || []).filter(b => b.status === 'Pending' || !b.status).length, 0), 'Paris en cours'); } catch (e) {}
+  }
   function lateral(D) {
+    try { majGlobal(); } catch (e) {}
     // menu latéral (tous les sports) : tous les onglets visibles, logo, « Mes paris » + « Analyseur »
     const tabs = document.getElementById('tabs'), grand = window.innerWidth >= 1100;
     if (tabs && grand) {
@@ -1360,46 +1411,83 @@
   }
 
 
-  /* ---------- Vue « Tous les sports » : foot, basket et tennis au même endroit ---------- */
-  const SPORTS_T = [['football', '⚽', 'FOOT'], ['basketball', '🏀', 'BASKET'], ['tennis', '🎾', 'TENNIS']];
-  const E_EMO = { won: '✅', lost: '❌', ok: '🟢', live: '🔴', pre: '⏳', end: '❔', nf: '➖', rep: '⏸️' };
+  /* ---------- Vue « Tous les sports » : foot, basket et tennis au même endroit (maquette 12) ---------- */
+  const SPORTS_T = [['football', '⚽', 'FOOT', 'Foot'], ['basketball', '🏀', 'BASKET', 'Basket'], ['tennis', '🎾', 'TENNIS', 'Tennis']];
   const reglee = b => b.status === 'Won' || b.status === 'Lost';
+  const heureFr = d => { const t = new Date(d); return isNaN(t) ? '' : t.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }); };
+  const dateCourte = d => { const t = new Date(d + 'T12:00:00'); return isNaN(t) ? String(d || '') : t.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); };
   function statsSport(D) {
     const sing = D.solos.filter(s => reglee(s.b)), cmb = D.C.filter(x => x.regle);
     const n = sing.length + cmb.length, g = sing.filter(s => s.b.status === 'Won').length + cmb.filter(x => x.legs.every(l => l.b.status === 'Won')).length;
     const mise = sing.reduce((t, s) => t + (+s.b.stake || 0), 0) + D.miseC, net = D.netS + D.netC;
     return { n, g, mise, net, roi: mise ? 100 * net / mise : 0, att: D.nbAttente };
   }
+  // pourquoi aucun combiné automatique n'est possible dans un sport ('' si rien à signaler)
+  function pourquoiPasAuto(sp, D) {
+    if (sp === 'football') return (autoPourquoi() || '').replace(/^ℹ️\s*/, '');
+    const auj = jour(), L = D.ouvertsS.map(s => s.b).filter(b => !b.comboId && b.date && b.date >= auj && +b.odds > 1);
+    if (L.length < 2) return L.length ? 'Il ne reste qu\'un pari simple à venir (« ' + L[0].match + ' ») : il en faut deux pour un combiné.' : '';
+    let best = 0; for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) { const c = L[i].odds * L[j].odds; if (c <= 3 && c > best) best = c; }
+    return 'Aucun combiné possible : il faut deux paris dont la cote ensemble fait entre 2,00 et 3,00' + (best ? ' (meilleure paire : ' + cote(Math.round(best * 100) / 100) + ')' : '') + '.';
+  }
   function vueTous(page, Df) {
-    const Ds = SPORTS_T.map(([k, emo, lab]) => ({ k, emo, lab, D: k === 'football' && Df ? Df : donnees(k) }));
+    const Ds = SPORTS_T.map(([k, emo, lab, nom]) => ({ k, emo, lab, nom, D: k === 'football' && Df ? Df : donnees(k) }));
     const T = Ds.map(x => Object.assign({ x }, statsSport(x.D)));
     const tot = T.reduce((a, t) => ({ n: a.n + t.n, g: a.g + t.g, mise: a.mise + t.mise, net: a.net + t.net, att: a.att + t.att }), { n: 0, g: 0, mise: 0, net: 0, att: 0 });
-    const siTout = Ds.reduce((t, x) => t + (+x.D.siTout || 0), 0), auj = jour();
-    const miseJ = Ds.reduce((t, x) => t + x.D.solos.concat([]).filter(s => s.b.date === auj).reduce((a, s) => a + (+s.b.stake || 0), 0) + x.D.C.filter(c => c.legs.some(l => l.b.date === auj)).reduce((a, c) => a + c.stake, 0), 0);
-    const kp = (l, v, c, sub) => `<div class="pz-k"><span>${l}</span><b class="${c || ''}">${v}</b>${sub ? `<small class="mut">${sub}</small>` : ''}</div>`;
-    const haut = `<div class="pz-bil pz-tous">${kp('Misé aujourd\'hui', miseJ.toFixed(2).replace('.', ',') + ' €')}${kp('Si tout passe aujourd\'hui', eur(siTout), 'pz-pos')}${kp('Bilan réglé', eur(tot.net), tot.net < 0 ? 'pz-neg' : 'pz-pos', 'ROI ' + (tot.mise ? (100 * tot.net / tot.mise).toFixed(1).replace('.', ',') : '0,0') + ' %')}${kp('En attente', tot.att, '', tot.n ? 'Réussite ' + Math.round(100 * tot.g / tot.n) + ' %' : '')}</div>`;
-    const badge = (k, emo, lab) => `<span class="pz-sb pz-sb-${k}" title="${lab}">${emo} ${lab}</span>`;
-    const ligne = (k, emo, lab, date, titre, prono, odds, stake, etat, txt) => `<div class="pz-tr" data-pz="mpsp" data-k="${k}" title="Ouvrir ${lab.toLowerCase()}">${badge(k, emo, lab)}<span class="mut pz-trd">${esc(date || '')}</span><b class="pz-trm">${esc(titre)}</b><span class="pz-trp">${esc(prono || '')}</span><b>${cote(odds)}</b><span class="mut">${(+stake || 0).toString().replace('.', ',')} €</span><span class="pz-st pz-${etat}">${E_EMO[etat] || ''} ${esc(txt)}</span></div>`;
-    const lignesDe = (ouvert) => {
-      const L = [];
-      Ds.forEach(({ k, emo, lab, D }) => {
-        D.solos.filter(s => ouvert ? !reglee(s.b) : reglee(s.b)).forEach(s => L.push({ d: s.b.date || '', html: ligne(k, emo, lab, s.b.date, s.b.match, s.b.prono, s.b.odds, s.b.stake, s.b.status === 'Won' ? 'won' : s.b.status === 'Lost' ? 'lost' : (s.e || 'pre'), s.b.status === 'Won' ? 'gagné' : s.b.status === 'Lost' ? 'perdu' : ({ live: 'en direct', ok: 'ça passe', pre: 'à venir', end: 'à régler', nf: 'à venir', rep: 'reporté', won: 'ça passe', lost: 'perdu' }[s.e] || 'à venir')) }));
-        D.C.filter(x => ouvert ? !x.regle : x.regle).forEach(x => { let e = 'pre', t = 'à venir'; try { [e, t] = etatCombo(x); } catch (er) {} L.push({ d: x.jour || '', html: ligne(k, emo, lab, x.jour, 'Combiné · ' + x.legs.length + ' paris', x.legs.map(l => l.b.prono).filter(Boolean).join(' + '), x.odds, x.stake, e, t) }); });
-      });
-      return L;
+    const auj = jour(), lim30 = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    const S = lireN();
+    // chiffres du jour
+    const duJour = []; Ds.forEach(({ k, D }) => (S[k] || []).forEach(b => { if (b.date === auj) duJour.push(b); }));
+    const miseJ = duJour.reduce((t, b) => t + (+b.stake || 0), 0);
+    const siTout = Ds.reduce((t, x) => t + (+x.D.siTout || 0), 0);
+    const regJ = duJour.filter(reglee), netJ = regJ.reduce((t, b) => t + (b.status === 'Won' ? (+b.stake || 0) * ((+b.odds || 1) - 1) : -(+b.stake || 0)), 0);
+    const parSp30 = Ds.map(({ k, nom, emo }) => { const L = (S[k] || []).filter(b => reglee(b) && (b.date || '') >= lim30), g = L.filter(b => b.status === 'Won').length; return { k, nom, emo, n: L.length, g }; });
+    const n30 = parSp30.reduce((t, x) => t + x.n, 0), g30 = parSp30.reduce((t, x) => t + x.g, 0);
+    const kc = (l, v, c, sub) => `<div class="pz-kc"><span>${l}</span><b class="${c || ''}">${v}</b><small>${sub || '&nbsp;'}</small></div>`;
+    const haut = `<div class="pz-kcs">${kc('Misé aujourd\'hui', (miseJ || 0).toFixed(2).replace('.', ',') + ' €', '', duJour.length + ' pari' + (duJour.length > 1 ? 's' : ''))}${kc('Si tout passe', eur(siTout), 'pz-pos', 'cotes nettes −' + String(RED_COLLE).replace('.', ',') + ' %')}${kc('Déjà réglé', eur(netJ), netJ < 0 ? 'pz-neg' : netJ > 0 ? 'pz-pos' : '', regJ.filter(b => b.status === 'Won').length + ' gagné · ' + regJ.filter(b => b.status === 'Lost').length + ' perdu')}${kc('Réussite du mois', n30 ? Math.round(100 * g30 / n30) + ' %' : '–', '', parSp30.filter(x => x.n).map(x => x.nom.toLowerCase() + ' ' + Math.round(100 * x.g / x.n) + ' %').join(' · ') || '&nbsp;')}</div>`;
+    const badge = (k, emo, lab) => `<span class="pz-sb pz-sb-${k}">${lab}</span>`;
+    const PILL = { won: ['win', 'gagné'], lost: ['lost', 'perdu'], ok: ['ok', 'ça passe'], live: ['wt', 'pas encore'], pre: ['pre', 'à venir'], nf: ['pre', 'à venir'], end: ['wt', 'à régler'], rep: ['wt', 'reporté'] };
+    // lettres des combinés en cours (A, B, C…) dans l'ordre d'affichage
+    const lettre = new Map(); let li = 0;
+    Ds.forEach(({ D }) => D.C.filter(x => !x.regle).forEach(x => { lettre.set(String(x.c.id), String.fromCharCode(65 + (li++ % 26))); }));
+    const entrees = [];   // une ligne par pari (simple ou jambe de combiné)
+    Ds.forEach(({ k, emo, lab, D }) => {
+      D.solos.forEach(s => entrees.push({ k, emo, lab, it: s, cb: '' }));
+      D.C.forEach(x => x.legs.forEach(l => entrees.push({ k, emo, lab, it: l, cb: lettre.get(String(x.c.id)) || (x.regle ? 'C' : '') })));
+    });
+    const ligne = ({ k, emo, lab, it, cb }) => {
+      const b = it.b, m = it.m; let e = b.status === 'Won' ? 'won' : b.status === 'Lost' ? 'lost' : (it.e || 'pre');
+      const live = m && m.st === 'in', fini = reglee(b) || (m && (m.done || m.st === 'post'));
+      const heure = live ? `<span class="pz-dot"></span>En cours${m.det === 'HT' ? ' · MT' : m.clk ? ' · ' + esc(m.clk) : ''}` : fini ? 'Terminé' : m && m.d ? esc(heureFr(m.d)) : (b.date === auj ? 'Aujourd\'hui' : esc(dateCourte(b.date)));
+      const titre = m && (live || fini) && m.hs != null && m.as != null ? `${esc(m.hn)} ${+m.hs || 0} – ${+m.as || 0} ${esc(m.an)}` : esc(String(b.match || '').replace(/\s+vs\.?\s+/i, ' – '));
+      let need = ''; if (k === 'football' && m && e === 'live') { try { const n = besoin(b, m); if (n) need = ` <span class="pz-ned">· ${esc(n)}</span>`; } catch (er) {} }
+      const [pc, pt] = PILL[e] || PILL.pre;
+      return `<div class="pz-tr" data-pz="mpsp" data-k="${k}" title="Ouvrir ${esc(lab.toLowerCase())}"><span>${badge(k, emo, lab)}</span><span class="mut pz-trd">${heure}</span><b class="pz-trm">${titre}</b><span class="pz-trp">${esc(b.prono || '')}${need}</span><b class="pz-tro">${cote(b.odds)}</b><span class="mut pz-trs">${(+b.stake || 0).toString().replace('.', ',')} €</span><span><i class="pz-pl pz-pl-${pc}">${pt}</i></span><span class="pz-trt">${cb ? `<i class="pz-cbt">Combiné ${cb}</i>` : '<small class="mut">simple</small>'}</span></div>`;
     };
+    const tete = '<div class="pz-tr pz-trh"><span>SPORT</span><span>HEURE / ÉTAT</span><span>MATCH</span><span>PARI</span><span>COTE</span><span>MISE</span><span>ÉTAT</span><span>TYPE</span></div>';
+    const tri = (a, b) => ((b.it.m && b.it.m.st === 'in') - (a.it.m && a.it.m.st === 'in')) || String((a.it.m && a.it.m.d) || a.it.b.date || '').localeCompare(String((b.it.m && b.it.m.d) || b.it.b.date || ''));
     let corps = '';
     if (page === 'cours') {
-      const L = lignesDe(true).sort((a, b) => String(a.d).localeCompare(String(b.d)));
-      corps = `<div class="card pz-card-tous"><h2>En cours · tous les sports <span class="mut pz-hint">· touche une ligne pour ouvrir le sport</span></h2>${L.length ? L.map(x => x.html).join('') : '<p class="mut">Aucun pari en cours.</p>'}<p class="mut pz-hint" style="margin-top:8px">Les combinés restent par sport : un combiné ne mélange jamais foot, basket et tennis.</p></div>`;
+      const L = entrees.filter(x => !reglee(x.it.b) || x.it.b.date === auj).sort((a, b) => (reglee(a.it.b) - reglee(b.it.b)) || tri(a, b));
+      // colonne de droite : combinés par sport + réussite 30 jours
+      const cards = Ds.map(({ k, emo, lab, nom, D }) => {
+        const ouv = D.C.filter(x => !x.regle);
+        if (ouv.length) return ouv.map(x => { let t = '', e = 'pre'; try { [e, t] = etatCombo(x); } catch (er) {} return `<div class="pz-ac pz-ac-ok"><b>Combiné ${lettre.get(String(x.c.id)) || ''} · cote ${cote(x.odds)}</b> ${badge(k, emo, lab)}<br>${x.legs.map(l => esc(String(l.b.prono || '').slice(0, 28))).join(' + ')} · mise ${(+x.stake || 0).toString().replace('.', ',')} €<br><span class="${e === 'lost' ? 'pz-neg' : e === 'won' || e === 'ok' ? 'pz-pos' : 'mut'}">${esc(t)}</span></div>`; }).join('');
+        const why = pourquoiPasAuto(k, D); const nb = D.ouvertsS.filter(s => !s.b.comboId).length;
+        return nb ? `<div class="pz-ac pz-ac-no"><b>${nom} · pas de combiné</b> ${badge(k, emo, lab)}<br>${esc(why || 'Aucun combiné à créer pour l\'instant.')}</div>` : '';
+      }).join('');
+      const bars = parSp30.map(x => `<div class="pz-rb"><span>${x.nom}</span><div><i class="pz-rb-${x.k}" style="width:${x.n ? Math.round(100 * x.g / x.n) : 0}%"></i></div><small>${x.g} / ${x.n}</small></div>`).join('');
+      corps = `<div class="pz-tous2"><section class="pz-tbl">${tete}${L.length ? L.map(ligne).join('') : '<p class="mut" style="padding:14px">Aucun pari en cours.</p>'}</section>
+        <aside class="pz-side"><div class="card"><h2>Combinés automatiques <span class="mut pz-hint">· par sport</span></h2>${cards || '<p class="mut">Aucun pari à combiner.</p>'}<p class="mut pz-hint">Un combiné ne mélange jamais deux sports. Foot : Ligue Europa, Conférence et Ligue 2 restent exclues.</p></div>
+        <div class="card"><h2>Réussite par sport <span class="mut pz-hint">· 30 jours</span></h2>${bars}</div></aside></div>`;
     } else if (page === 'hist') {
-      const L = lignesDe(false).sort((a, b) => String(b.d).localeCompare(String(a.d)));
-      corps = `<div class="card pz-card-tous"><h2>Historique · tous les sports</h2>${L.slice(0, 60).map(x => x.html).join('') || '<p class="mut">Aucun pari réglé.</p>'}${L.length > 60 ? `<p class="mut pz-hint">${L.length - 60} paris plus anciens : ouvre un sport pour tout voir.</p>` : ''}</div>`;
+      const L = entrees.filter(x => reglee(x.it.b)).sort((a, b) => String(b.it.b.date || '').localeCompare(String(a.it.b.date || '')) || (b.it.b.id - a.it.b.id));
+      corps = `<section class="pz-tbl">${tete}${L.slice(0, 80).map(ligne).join('') || '<p class="mut" style="padding:14px">Aucun pari réglé.</p>'}${L.length > 80 ? `<p class="mut pz-hint" style="padding:8px 14px">${L.length - 80} paris plus anciens : ouvre un sport pour tout voir.</p>` : ''}</section>`;
     } else if (page === 'stats') {
-      const rowS = t => `<tr><td class="l">${t.x.emo} ${t.x.lab}</td><td>${t.n}</td><td>${t.g}</td><td>${t.n ? Math.round(100 * t.g / t.n) + ' %' : '–'}</td><td>${t.mise.toFixed(2).replace('.', ',')} €</td><td class="${t.net < 0 ? 'pz-neg' : 'pz-pos'}">${eur(t.net)}</td><td>${t.mise ? t.roi.toFixed(1).replace('.', ',') + ' %' : '–'}</td></tr>`;
+      const rowS = t => `<tr><td class="l">${t.x.emo} ${t.x.nom}</td><td>${t.n}</td><td>${t.g}</td><td>${t.n ? Math.round(100 * t.g / t.n) + ' %' : '–'}</td><td>${t.mise.toFixed(2).replace('.', ',')} €</td><td class="${t.net < 0 ? 'pz-neg' : 'pz-pos'}">${eur(t.net)}</td><td>${t.mise ? t.roi.toFixed(1).replace('.', ',') + ' %' : '–'}</td></tr>`;
       corps = `<div class="card pz-card-tous"><h2>Bilan par sport</h2><div class="pz-tbw"><table class="pz-tb"><thead><tr><th class="l">Sport</th><th>Réglés</th><th>Gagnés</th><th>Réussite</th><th>Misé</th><th>Net</th><th>ROI</th></tr></thead><tbody>${T.map(rowS).join('')}</tbody></table></div><p class="mut pz-hint">ROI = gain net ÷ somme misée sur les paris réglés (simples et combinés). Choisis un sport pour le détail.</p></div>` + vueStatsPage();
     } else {
-      corps = `<div class="card pz-card-tous"><h2>Combinés par sport</h2>${Ds.map(({ k, emo, lab, D }) => `<div class="pz-tr" data-pz="mpsp" data-k="${k}">${badge(k, emo, lab)}<b class="pz-trm">${D.C.filter(x => !x.regle).length} combiné(s) en cours</b><span class="mut">${D.C.filter(x => x.regle).length} réglé(s)</span></div>`).join('')}<p class="mut pz-hint" style="margin-top:8px">Un combiné ne mélange jamais deux sports. Choisis un sport pour voir, créer ou défaire ses combinés.</p></div>`;
+      corps = `<div class="card pz-card-tous"><h2>Combinés par sport</h2>${Ds.map(({ k, emo, lab, D }) => `<div class="pz-tr pz-trc" data-pz="mpsp" data-k="${k}"><span>${badge(k, emo, lab)}</span><b>${D.C.filter(x => !x.regle).length} combiné(s) en cours</b><span class="mut">${D.C.filter(x => x.regle).length} réglé(s)</span></div>`).join('')}<p class="mut pz-hint" style="margin-top:8px">Un combiné ne mélange jamais deux sports. Choisis un sport pour voir, créer ou défaire ses combinés.</p></div>`;
     }
     return { haut, corps };
   }
@@ -2227,6 +2315,15 @@
       border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;box-shadow:none!important;background:none!important}
     body nav#tabs .tabsheet::before{content:"Plus";padding:0 14px 4px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
     body nav#tabs .pz-badge{position:static;margin-left:auto}
+    body nav#tabs [data-act=pronos],body nav#tabs [data-act=pzanalyse],body nav#tabs [data-act=tab][data-t=multi]{display:none!important}
+    #pzGlobal{display:flex;flex-direction:column;gap:4px;margin:0}
+    #pzGlobal .pz-gl{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);padding:2px 10px}
+    #pzGlobal .pz-gl1{color:var(--ok);margin-top:6px}#pzGlobal .pz-gl2{margin-top:6px;padding-top:12px;border-top:1px solid var(--line)}
+    #pzGlobal button{display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;border:0;border-radius:12px;background:transparent;color:var(--mut);font:inherit;font-size:15px;font-weight:700;cursor:pointer;box-shadow:none;position:relative;text-align:left}
+    #pzGlobal button:hover{background:var(--field);color:var(--txt)}
+    #pzGlobal button i{font-style:normal;font-size:18px;width:24px;text-align:center}
+    #pzGlobal button.on{background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--txt);font-weight:800}
+    #pzGlobal .pz-badge{position:static;margin-left:auto}
     body.pz-docked header{display:none!important}
     body.pz-docked nav#tabs{padding-bottom:var(--pzdock,240px)!important}
     #pzDock:empty{display:none}
@@ -2234,7 +2331,7 @@
       padding:12px 14px 16px;background:var(--card);border-right:1px solid var(--line);border-top:1px solid var(--line)}
     body.pz-docked nav#tabs{padding-top:var(--pztop,150px)!important}
     body.pz-docked nav#tabs .pz-brand{display:none!important}
-    #pzTop{position:fixed;left:0;top:0;width:240px;box-sizing:border-box;z-index:61;display:flex;flex-direction:column;gap:14px;padding:18px 14px 10px;background:var(--card);border-right:1px solid var(--line)}
+    #pzTop{position:fixed;left:0;top:0;width:240px;box-sizing:border-box;z-index:61;display:flex;flex-direction:column;gap:10px;padding:18px 14px 10px;background:var(--card);border-right:1px solid var(--line)}
     #pzTop .pz-brand{display:flex!important;margin:2px 8px 0;font-size:19px}
     #pzTop .seg{display:grid!important;grid-template-columns:1fr 1fr;gap:4px;width:100%;margin:0;padding:4px;box-sizing:border-box;border-radius:14px;background:var(--field);box-shadow:none}
     #pzTop .seg button{width:100%;padding:8px 6px;font-size:13px;border-radius:10px;justify-content:center}
@@ -2245,12 +2342,22 @@
   }
   @media (max-width:700px){.pz-big{grid-template-columns:1fr 1fr}.pz-big .pz-sit{grid-column:1/-1;flex-direction:row!important;align-items:center;justify-content:space-between}.pz-big .pz-k b{font-size:17px}.pz-big .pz-main b{font-size:32px}.pz-big .pz-k{padding:9px 10px}.pz-big .pz-k span{font-size:9.5px}.pz-big .pz-main{grid-column:1/-1}.pz-note{display:none}.pz-grid{grid-template-columns:1fr}}`;
   const st = document.createElement('style'); st.textContent = css + `
-  .pz-sb{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:7px;white-space:nowrap;background:color-mix(in srgb,var(--ok) 16%,transparent)}
-  .pz-sb-basketball{background:color-mix(in srgb,#e07a1a 18%,transparent)}.pz-sb-tennis{background:color-mix(in srgb,#8a3fb0 16%,transparent)}
-  .pz-tr{display:grid;grid-template-columns:96px 78px minmax(120px,1.4fr) minmax(90px,1.2fr) 50px 54px auto;gap:8px;align-items:center;padding:9px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:13px}
-  .pz-tr:hover{background:color-mix(in srgb,var(--ok) 6%,transparent)}.pz-card-tous .pz-tr:first-of-type{border-top:0}
-  .pz-tous{margin-bottom:10px}.pz-trm,.pz-trp{min-width:0;overflow:hidden;text-overflow:ellipsis}
-  @media (max-width:700px){.pz-tr{grid-template-columns:auto 1fr auto;grid-template-areas:'b d s' 'm m m' 'p o k'}.pz-tr .pz-sb{grid-area:b}.pz-tr .pz-trd{grid-area:d}.pz-tr>.pz-st{grid-area:s}.pz-tr .pz-trm{grid-area:m;white-space:normal}.pz-tr .pz-trp{grid-area:p}}
+  .pz-tr{display:grid;grid-template-columns:78px 128px minmax(150px,1.4fr) minmax(120px,1.2fr) 50px 52px 92px 84px;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer;font-size:13px}
+  .pz-tr:hover{background:color-mix(in srgb,var(--ok) 6%,transparent)}.pz-trh{cursor:default;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--mut);background:var(--field);border-top:0}.pz-trh:hover{background:var(--field)}
+  .pz-trc{grid-template-columns:90px 1fr auto}.pz-trm,.pz-trp{min-width:0;overflow:hidden;text-overflow:ellipsis}.pz-tro{text-align:right}.pz-trs{text-align:right}
+  .pz-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#d03a2a;margin-right:6px}.pz-ned{color:#9a6400;font-size:12px}
+  .pz-pl{font-style:normal;font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap;background:var(--field);color:var(--mut)}
+  .pz-pl-ok,.pz-pl-win{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}.pz-pl-wt{background:color-mix(in srgb,#e0a010 20%,transparent);color:#9a6400}.pz-pl-lost{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+  .pz-cbt{font-style:normal;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px;background:color-mix(in srgb,#2f7de1 16%,transparent);color:#2f7de1;white-space:nowrap}
+  .pz-kcs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
+  .pz-kc{background:var(--card);border-radius:16px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line)}.pz-kc>span{font-size:12px;font-weight:600;color:var(--mut)}.pz-kc>b{font-size:22px;font-weight:800}.pz-kc small{font-size:11.5px;color:var(--mut)}
+  .pz-tous2{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}.pz-tbl{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}.pz-side{display:flex;flex-direction:column;gap:12px}
+  .pz-ac{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-top:8px}.pz-ac-ok{background:color-mix(in srgb,var(--ok) 9%,transparent);border-color:color-mix(in srgb,var(--ok) 35%,var(--line))}.pz-ac-no{border-style:dashed;border-color:#e0a010;background:color-mix(in srgb,#e0a010 9%,transparent)}
+  .pz-rb{display:grid;grid-template-columns:70px 1fr 54px;gap:8px;align-items:center;font-size:12.5px;margin-top:8px;font-weight:700}.pz-rb>div{height:8px;background:var(--field);border-radius:4px}.pz-rb i{display:block;height:8px;border-radius:4px;background:var(--ok)}.pz-rb-basketball{background:#e07a1a!important}.pz-rb-tennis{background:#8a3fb0!important}.pz-rb small{text-align:right;color:var(--mut);font-weight:400}.pz-side .pz-hint{font-size:12px;margin:10px 0 0}.pz-side h2{font-size:15px}
+  .pz-sb{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:7px;white-space:nowrap;background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .pz-sb-basketball{background:color-mix(in srgb,#e07a1a 18%,transparent);color:#c0610f}.pz-sb-tennis{background:color-mix(in srgb,#8a3fb0 16%,transparent);color:#8a3fb0}
+  @media (max-width:1099px){.pz-tous2{grid-template-columns:minmax(0,1fr)}.pz-kcs{grid-template-columns:1fr 1fr}}
+  @media (max-width:700px){.pz-trh{display:none}.pz-tr{grid-template-columns:auto 1fr auto;grid-template-areas:'b d s' 'm m m' 'p o k';row-gap:4px}.pz-tr>:nth-child(1){grid-area:b}.pz-tr>:nth-child(2){grid-area:d}.pz-tr>:nth-child(7){grid-area:s;justify-self:end}.pz-tr>:nth-child(3){grid-area:m;white-space:normal}.pz-tr>:nth-child(4){grid-area:p}.pz-tr>:nth-child(5){grid-area:o}.pz-tr>:nth-child(6){grid-area:k}.pz-tr>:nth-child(8){display:none}.pz-trc{grid-template-columns:auto 1fr auto}}
   .pz-add{margin-left:auto;font-size:12px}.pz-add+.pz-all{margin-left:10px}
   .pz-act{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.pz-ib{padding:3px 9px!important;font-size:12px!important;border-radius:10px!important;box-shadow:none!important}
   .pz-onw{background:color-mix(in srgb,var(--ok) 22%,transparent)!important;color:var(--ok)!important;border-color:var(--ok)!important}.pz-onl{background:color-mix(in srgb,var(--bad) 20%,transparent)!important;color:var(--bad)!important;border-color:var(--bad)!important}
@@ -2392,6 +2499,13 @@
       else if (k === 'anexport') anExport();
       return;
     }
+    const gb = e.target.closest('#pzGlobal [data-pzg]');
+    if (gb) {
+      e.preventDefault(); e.stopImmediatePropagation(); const k = gb.dataset.pzg;
+      if (k === 'multi') { window.__pzVue = false; window.__pzFrame = false; if (ui.sport !== 'foot') setSport('foot'); if (ui.ftab !== 'multi') { ui.fMultiDay = null; ui.fMulti = 'all'; } ui.ftab = 'multi'; ui.tabMore = false; try { closeModals(); } catch (x) {} render(); }
+      else { allerFoot(); window.__pzVue = true; if (k === 'analyse') filtre = 'analyse'; else if (filtre === 'analyse' && window.innerWidth >= 1100) filtre = 'cours'; decorer(); }
+      window.scrollTo(0, 0); return;
+    }
     const pa = e.target.closest('#tabs [data-act=pzanalyse]');
     if (pa) { e.preventDefault(); e.stopImmediatePropagation(); allerFoot(); window.__pzVue = true; filtre = 'analyse'; decorer(); window.scrollTo(0, 0); return; }
     const p = e.target.closest('#tabs [data-act=pronos]');
@@ -2441,6 +2555,15 @@
         const br = head && head.querySelector('.brand');
         if (br) { const c = br.cloneNode(true); c.classList.add('pz-brand'); top.appendChild(c); }
         document.body.appendChild(top);
+      }
+      if (!document.getElementById('pzGlobal')) {
+        const g = document.createElement('div'); g.id = 'pzGlobal';
+        g.innerHTML = '<div class="pz-gl pz-gl1">Tous les sports</div>'
+          + '<button type="button" data-pzg="multi"><i>🔥</i><span>Multiplex</span></button>'
+          + '<button type="button" data-pzg="paris"><i>🎯</i><span>Mes paris</span></button>'
+          + '<button type="button" data-pzg="analyse"><i>🔍</i><span>Analyseur</span></button>'
+          + '<div class="pz-gl pz-gl2">Par sport</div>';
+        top.appendChild(g);
       }
       if (seg.parentElement !== top) top.appendChild(seg);
       if (row.parentElement !== d) d.appendChild(row);
