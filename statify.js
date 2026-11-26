@@ -3403,6 +3403,19 @@ function mxRankStrip(L){ const lgs=[...new Set(L.filter(x=>x.st==='in').map(x=>x
   return out; }
 function mxItems(){ const today=todayDK();
   return (liveData.items||[]).filter(x=>(x.k==='f'||x.k==='n')&&(x.st==='in'||(Date.parse(x.d)&&parisDK(x.d)===today))); }
+// résumé des paris en direct : combien passent à l'instant T et le bénéfice si le score restait comme ça
+const mxSum={ben:null,chg:0,dir:''};
+function mxEur(v){ return (v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(2).replace('.',',')+' €'; }
+function mxSumHtml(items,nr){
+  const seen=new Set(); let n=0, ok=0, stake=0, gain=0;
+  for(const x of items) for(const b of mxBetsX(x)){ if(b.combo||seen.has(b.id)) continue; seen.add(b.id); n++; stake+=+b.stake||0;
+    if(b.e==='ok'||b.e==='won'){ ok++; gain+=(+b.stake||0)*(+b.odds||0); } }
+  const tip='Pastille verte = le pari passe · orange = pas encore · gris = pas de pari. Hors combinés. Bénéfice = gains des paris qui passent − mises de tous les paris en direct.';
+  if(!n){ mxSum.ben=null; return `<span class="mut mxleg" title="${tip}" style="margin-left:auto;font-size:12px">Aucun pari en direct</span>`; }
+  const ben=Math.round((gain-stake)*100)/100, now=Date.now();
+  if(mxSum.ben!==null&&mxSum.ben!==ben){ mxSum.chg=now; mxSum.dir=ben>mxSum.ben?'up':'dn'; } mxSum.ben=ben;
+  const fl=now-mxSum.chg<2500?' '+mxSum.dir:'', cl=ben>0?'pos':ben<0?'neg':'';
+  return `<span class="mxsum${fl}" title="${tip}"><span class="ct ${ok===n?'pos':ok?'mid':'neg'}">✓ ${ok} pari${ok>1?'s':''} passe${ok>1?'nt':''} sur ${n}</span>${stake?`<span class="bn ${cl}">${nr?'':'bénéfice si ça reste ainsi : '}<b>${mxEur(ben)}</b></span>`:''}</span>`; }
 function mxLiveHtml(){
   const A=mxItems(), L=A.filter(x=>x.k==='f'), B=A.filter(x=>x.k==='n'), now=Date.now(), F=ui.mxF||'live';
   const mineF=x=>x.k==='n'?(fav.teams.includes(x.h.id)||fav.teams.includes(x.a.id)):(ffav.includes(x.h.id)||ffav.includes(x.a.id)||nfav.foot.includes(x.h.id)||nfav.foot.includes(x.a.id)||!!mpick[x.id]);
@@ -3410,7 +3423,7 @@ function mxLiveHtml(){
   const sets={live:A.filter(x=>x.st==='in'),foot:L,basket:B,mine:A.filter(mineF),bets:A.filter(betF),all:A};
   const nr=mxNarrow(), chip=(k,t)=>`<button class="${F===k?'':'sec'} fbtn" data-act="mxf" data-f="${k}">${nr?({live:'🔴 Direct',foot:'⚽ Foot',basket:'🏀 Basket',mine:'⭐ Clubs',bets:'🎯 Paris',all:'Tous'})[k]:t} · ${sets[k].length}</button>`;
   const live=sets.live, goals=L.reduce((n,x)=>n+(x.st==='pre'?0:x.h.s+x.a.s),0), nil=live.filter(x=>x.k==='f'&&!x.h.s&&!x.a.s).length;
-  let h=`<div class="row" style="gap:6px;margin:0 0 12px;flex-wrap:wrap;align-items:center">${chip('live','🔴 En direct')}${chip('foot','⚽ Foot')}${chip('basket','🏀 Basket')}${chip('mine','⭐ Mes clubs')}${chip('bets','🎯 Mes paris')}${chip('all','Tous aujourd\'hui')}<span class="mut mxleg" style="margin-left:auto;font-size:12px">${nr?'':'Pastille verte = le pari passe · orange = pas encore · gris = pas de pari · '}${goals} but${goals>1?'s':''}${nil?` · ${nil} match${nil>1?'s':''} encore à 0-0`:''}</span></div>`;
+  let h=`<div class="row" style="gap:6px;margin:0 0 12px;flex-wrap:wrap;align-items:center">${chip('live','🔴 En direct')}${chip('foot','⚽ Foot')}${chip('basket','🏀 Basket')}${chip('mine','⭐ Mes clubs')}${chip('bets','🎯 Mes paris')}${chip('all','Tous aujourd\'hui')}${mxSumHtml(sets[F].filter(x=>x.st==='in'),nr)}</div>`;
   const rank=x=>{ const c=liveMem[x.k+x.id]; return (c&&c.chg&&now-c.chg<90000)?0:x.st==='in'?1:x.st==='pre'?2:3; };
   const M=[...sets[F]].sort((a,b)=>rank(a)-rank(b)||(rank(a)===0?liveMem[b.k+b.id].chg-liveMem[a.k+a.id].chg:Date.parse(a.d)-Date.parse(b.d)));
   if(!M.length) return h+`<div class="card"><p class="mut" style="margin:0">${F==='live'?(L.length?'Aucun match en cours pour l\'instant. Touche « Tous aujourd\'hui » pour voir les matchs à venir.':'Aucun match aujourd\'hui dans tes championnats.'):F==='mine'?'Aucun match de tes clubs (☆ / ⭐) ou de ta sélection aujourd\'hui.':F==='bets'?'Aucun pari en cours sur les matchs du jour.':'Aucun match aujourd\'hui.'}</p></div>`;
