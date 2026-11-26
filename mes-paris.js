@@ -2315,6 +2315,7 @@
       border:0!important;border-top:1px solid var(--line)!important;border-radius:0!important;box-shadow:none!important;background:none!important}
     body nav#tabs .tabsheet::before{content:"Plus";padding:0 14px 4px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
     body nav#tabs .pz-badge{position:static;margin-left:auto}
+    body nav#tabs>*,body nav#tabs .tabsheet>*{flex-shrink:0!important}
     body nav#tabs [data-act=pronos],body nav#tabs [data-act=pzanalyse],body nav#tabs [data-act=tab][data-t=multi]{display:none!important}
     #pzGlobal{display:flex;flex-direction:column;gap:4px;margin:0}
     #pzGlobal .pz-gl{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);padding:2px 10px}

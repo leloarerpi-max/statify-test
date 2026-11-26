@@ -2568,7 +2568,7 @@ function render(){
     document.body.classList.toggle('sport-foot',FT);
     document.querySelectorAll('#sportSeg button').forEach(b=>b.classList.toggle('on',b.dataset.sport===ui.sport));
     { const ICO={home:'🏠',games:'📋',matches:'📋',players:'👤',teams:'🛡️',standings:'📊',table:'📊',multi:'🔥',race:'🎯',records:'🏅',compare:'⚖️',rest:'😴',cal:'📅',studio:'🎨'}, cl=l=>l.replace(/^🔥\s*/,'');
-      const PRI=FT?['home','matches','multi','table']:['home','games','players','teams'], pri=TT.filter(([k])=>PRI.includes(k)), rest=TT.filter(([k])=>!PRI.includes(k)), inRest=rest.some(([k])=>k===cur);
+      const PRI=FT?['home','matches','multi','table']:(window.innerWidth>=1100?['home','games','standings']:['home','games','players','teams']), pri=TT.filter(([k])=>PRI.includes(k)), rest=TT.filter(([k])=>!PRI.includes(k)), inRest=rest.some(([k])=>k===cur);
       const nLive=FT?(liveData.items||[]).filter(x=>x.k==='f'&&x.st==='in').length:0;
       const tb=([k,l])=>`<button data-act="tab" data-t="${k}" class="${cur===k?'on':''}"><i>${ICO[k]||'•'}</i><span>${esc(cl(l))}${k==='multi'&&nLive?` <b class="tabbadge">${nLive}</b>`:''}</span></button>`;
       $('#tabs').innerHTML=pri.map(tb).join('')+`<button data-act="pronos"><i>🎯</i><span>Pronos</span></button><button data-act="tabmore" class="${inRest||ui.tabMore?'on':''}"><i>⋯</i><span>Plus</span></button>`+(ui.tabMore?`<div class="tabsheet">${rest.map(tb).join('')}</div>`:''); }
@@ -3425,6 +3425,7 @@ function mxLiveHtml(){
   return h+SEC.map(([r,t])=>{ const G=M.filter(x=>rank(x)===r); return G.length?`<div class="mxl">${t}</div><div class="mxgrid">${G.map(x=>x.k==='n'?mxBasketCard(x,gof(x),flf(x)):mxCompact(x,gof(x),flf(x))).join('')}</div>`:''; }).join('')+mxRankStrip(L);
 }
 let mxWasNarrow=null;
+let __wide=window.innerWidth>=1100; window.addEventListener('resize',()=>{ const w=window.innerWidth>=1100; if(w!==__wide){ __wide=w; if(ui.sport==='nba'){ try{ render(); }catch(e){} } } });
 window.addEventListener('resize',()=>{ const n=mxNarrow(); if(mxWasNarrow!==null&&n!==mxWasNarrow&&ui.sport==='foot'&&ui.ftab==='multi'){ try{ render(); }catch(e){} } mxWasNarrow=n; });
 function footLiveTab(){ mxWasNarrow=mxNarrow();
   let h=footControls()+`<div class="card livecard mxtab"><div class="row between" style="gap:8px;flex-wrap:wrap;margin:0 0 10px"><h2 style="margin:0">${(liveData.items||[]).some(x=>x.k==='f'&&x.st==='in')?'<span class="livedot"></span>':''}Multiplex <span class="mut" style="font-size:12px;font-weight:400">· mis à jour en continu · <span class="link" data-act="liverefresh">actualiser</span></span></h2><div class="row mxset${mxNarrow()&&!ui.mxSet?' fold':''}" style="gap:6px;flex-wrap:wrap"><button class="sec mxgear" data-act="mxset" aria-label="Réglages du multiplex" aria-expanded="${!!ui.mxSet}">⚙️</button><button class="sec rb-btn" data-act="radio">${radio.on?'⏸ Couper RMC':'📻 RMC en direct'}</button><button class="sec" data-act="sndtoggle">${sndPref()==='0'?'🔇 Son de but : coupé':'🔊 Son de but'}</button><label class="mxfr"><input type="checkbox" data-act="mxfront" ${mxFrontPref()?'checked':''}> Match devant à chaque but</label></div></div><div id="mxLive">${mxLiveHtml()}</div></div>`;
