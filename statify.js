@@ -3265,7 +3265,7 @@ async function mxFeedTick(){
   finally{ mxFeedBusy=false; } }
 /* but : le match passe devant 8 s, puis retour au multiplex */
 const mxFQ=[]; let mxFOn=null, mxFT=0;
-const mxFrontPref=()=>{ try{ return localStorage.getItem('suivi-mx-front')!=='0'; }catch(e){ return true; } };
+const mxFrontPref=()=>false;   // pop-up « match devant à chaque but » supprimée
 function mxFrontPush(id,sd,old){ if(ui.sport!=='foot'||ui.ftab!=='multi'||!mxFrontPref()||document.hidden) return;
   if((mxFOn&&mxFOn.id===id)||mxFQ.some(q=>q.id===id)) return; if(mxFQ.length>=3) mxFQ.shift(); mxFQ.push({id,sd,old}); if(!mxFOn) mxFrontNext(); }
 function mxFrontClose(){ clearInterval(mxFT); const o=document.getElementById('mxFront'); if(o) o.remove(); mxFOn=null; setTimeout(mxFrontNext,300); }
@@ -3441,7 +3441,7 @@ let mxWasNarrow=null;
 let __wide=window.innerWidth>=1100; window.addEventListener('resize',()=>{ const w=window.innerWidth>=1100; if(w!==__wide){ __wide=w; if(ui.sport==='nba'){ try{ render(); }catch(e){} } } });
 window.addEventListener('resize',()=>{ const n=mxNarrow(); if(mxWasNarrow!==null&&n!==mxWasNarrow&&ui.sport==='foot'&&ui.ftab==='multi'){ try{ render(); }catch(e){} } mxWasNarrow=n; });
 function footLiveTab(){ mxWasNarrow=mxNarrow();
-  let h=footControls()+`<div class="card livecard mxtab"><div class="row between" style="gap:8px;flex-wrap:wrap;margin:0 0 10px"><h2 style="margin:0">${(liveData.items||[]).some(x=>x.k==='f'&&x.st==='in')?'<span class="livedot"></span>':''}Multiplex <span class="mut" style="font-size:12px;font-weight:400">· mis à jour en continu · <span class="link" data-act="liverefresh">actualiser</span></span></h2><div class="row mxset${mxNarrow()&&!ui.mxSet?' fold':''}" style="gap:6px;flex-wrap:wrap"><button class="sec mxgear" data-act="mxset" aria-label="Réglages du multiplex" aria-expanded="${!!ui.mxSet}">⚙️</button><button class="sec rb-btn" data-act="radio">${radio.on?'⏸ Couper RMC':'📻 RMC en direct'}</button><button class="sec" data-act="sndtoggle">${sndPref()==='0'?'🔇 Son de but : coupé':'🔊 Son de but'}</button><label class="mxfr"><input type="checkbox" data-act="mxfront" ${mxFrontPref()?'checked':''}> Match devant à chaque but</label></div></div><div id="mxLive">${mxLiveHtml()}</div></div>`;
+  let h=footControls()+`<div class="card livecard mxtab"><div class="row between" style="gap:8px;flex-wrap:wrap;margin:0 0 10px"><h2 style="margin:0">${(liveData.items||[]).some(x=>x.k==='f'&&x.st==='in')?'<span class="livedot"></span>':''}Multiplex <span class="mut" style="font-size:12px;font-weight:400">· mis à jour en continu · <span class="link" data-act="liverefresh">actualiser</span></span></h2><div class="row mxset${mxNarrow()&&!ui.mxSet?' fold':''}" style="gap:6px;flex-wrap:wrap"><button class="sec mxgear" data-act="mxset" aria-label="Réglages du multiplex" aria-expanded="${!!ui.mxSet}">⚙️</button><button class="sec rb-btn" data-act="radio">${radio.on?'⏸ Couper RMC':'📻 RMC en direct'}</button><button class="sec" data-act="sndtoggle">${sndPref()==='0'?'🔇 Son de but : coupé':'🔊 Son de but'}</button></div></div><div id="mxLive">${mxLiveHtml()}</div></div>`;
   // en dessous : classement live et bilan de la soirée (ceux de l'ancien multiplex)
   try{ const ms=multiSet('all'), tl=[...new Set(ms.filter(m=>m.st!=='pre').map(m=>m.lg))].filter(l=>foot.leagues[l]&&foot.leagues[l].standings.length);
     if(tl.length){ let cur=ui.fMultiT; if(!tl.includes(cur)) cur=tl[0]; let tb=multiTable(cur,ms.filter(m=>m.lg===cur));
