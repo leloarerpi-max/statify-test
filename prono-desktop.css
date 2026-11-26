@@ -1,0 +1,118 @@
+/* Liens supplémentaires de la barre latérale : masqués sur mobile */
+#gnav .gnav-d{display:none}
+
+/* Mise en page ordinateur : barre latérale + page pleine largeur.
+   Chargé après prono.css ; ne s'applique qu'à partir de 1100 px de large. */
+@media (min-width:1100px){
+  body{padding-left:calc(240px + 2rem)!important;padding-bottom:2rem!important}
+
+  /* Navigation : le bandeau du bas devient une barre latérale fixe */
+  #gnav{position:fixed!important;left:0!important;top:0!important;bottom:0!important;transform:none!important;
+    width:240px!important;display:flex!important;flex-direction:column!important;gap:6px!important;
+    padding:24px 14px!important;border-radius:0!important;background:var(--card)!important;
+    border:0!important;border-right:1px solid var(--line)!important;box-shadow:none!important;z-index:60}
+  #gnav::before{content:"PronoTracker Pro";display:block;font-size:20px;font-weight:800;color:var(--txt);padding:0 10px 18px}
+  #gnav a{flex-direction:row!important;justify-content:flex-start!important;gap:12px!important;
+    padding:12px 14px!important;border-radius:12px!important;font-size:15px!important}
+  #gnav a.gnav-d{display:flex!important}
+  #gnav a.gnav-m{display:none!important}
+  #gnav a i{display:none!important}
+  #gnav a{font-weight:600!important;color:var(--txt)!important}
+  #gnav a[aria-current=page]{background:#e3f4e9!important;color:var(--acc)!important;font-weight:800!important}
+  #gnav::after{content:"Suivi de performance";order:-1;font-size:12px;color:var(--mut);padding:0 10px 14px;margin-top:-14px}
+  #gnav::before{order:-2}
+  #gnav .gnav-sport.gnav-d{display:flex!important;gap:6px;margin-top:14px;padding:0 4px}
+  .gnav-sport button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--txt);font-weight:600;font-size:14px}
+  .gnav-sport button.on{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:800}
+  #gnav a i{font-size:18px}
+  #gnav a span{font-size:15px}
+
+  /* Page pleine largeur (remplace le plafond à 1560 px) */
+  #appRoot,#appRoot:has(#trackerViewContent:not(.hidden)){max-width:2200px!important;margin-left:auto;margin-right:auto}
+
+  /* Deux colonnes de travail : À régler / historique à gauche, Mes combinés à droite */
+  #trackerViewContent{grid-template-columns:minmax(0,2fr) minmax(420px,1fr)!important}
+  #colD{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto}
+  /* Pages : Pronos (défaut), Combinés, Stats — pilotées par body[data-page] */
+  body:not([data-page=stats]) #colD~*,
+  body[data-page=combos] #colG,body[data-page=combos] #resumeJour,body[data-page=combos] #vueTabs,
+  body[data-page=stats] #colG,body[data-page=stats] #combosCard,body[data-page=stats] #resumeJour,body[data-page=stats] #vueTabs{display:none!important}
+  body[data-page=combos] #colD{grid-column:1/-1;position:static;max-height:none}
+  body[data-page=stats] #colD{grid-column:1/-1;position:static;max-height:none;overflow:visible}
+  body[data-page=stats] #colD~*{grid-column:1/-1}
+  /* En-tête = barre de titre fine ; actions (Sync, Exporter…) rangées en bas de la barre latérale */
+  #appRoot>div.surface:first-child{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transform:none!important;filter:none!important;animation:none!important;will-change:auto!important;contain:none!important;opacity:1!important;position:static!important;z-index:auto!important;isolation:auto!important;overflow:visible!important;background:none!important;border:0!important;box-shadow:none!important;padding:0!important;min-height:0}
+  #appRoot>div.surface:first-child>div:first-child{display:none!important}
+  #appRoot>div.surface:first-child::before{content:"Pronos";font-size:28px;font-weight:800;color:var(--txt)}
+  body[data-page=combos] #appRoot>div.surface:first-child::before{content:"Combinés"}
+  body[data-page=stats] #appRoot>div.surface:first-child::before{content:"Stats"}
+  /* Les boutons Foot / Tennis / Analyseur sont déjà dans la barre latérale */
+  #appRoot>div:has(>#btnViewTracker){display:none!important}
+}
+/* Actions (Sync, thème, ambiance, Exporter, Sauvegarder, Importer) : toujours en bas de la barre latérale, quelle que soit la hauteur */
+@media (min-width:1100px){
+  #appRoot{z-index:auto!important}
+  #hdrActions{position:fixed;left:0;bottom:0;width:240px;box-sizing:border-box;flex-direction:column!important;align-items:stretch!important;
+    gap:6px!important;padding:12px 14px!important;background:var(--card);border-right:1px solid var(--line);z-index:61;margin:0!important}
+  #hdrActions>*{width:100%!important;flex:none!important;justify-content:center}
+  #gnav{padding-bottom:200px!important;overflow-y:auto}
+}
+@media (min-width:1100px) and (max-height:760px){
+  #hdrActions{display:grid!important;grid-template-columns:1fr 1fr;gap:5px!important;padding:8px 10px!important}
+  #hdrActions>#ambianceSelect,#hdrActions>label{grid-column:1/-1}
+  #gnav{padding-bottom:170px!important}
+}
+/* Très grands écrans : un peu plus d'air pour la colonne de droite */
+@media (min-width:1900px){
+  #trackerViewContent{grid-template-columns:minmax(0,2.2fr) minmax(520px,1fr)!important}
+}
+
+/* ===== Maquette v2 (ordinateur) ===== */
+#btnReglages{display:none}
+@media (min-width:1100px){
+  /* Fond calme : pas de feuilles / confettis */
+  #ambianceCanvas{display:none!important}
+
+  /* Combiné en grand, en premier */
+  #impactBar{display:grid!important;grid-template-columns:2.2fr 1fr 1fr 1fr 1fr auto;align-items:stretch}
+  #impactBar>.ib-cell:nth-child(2){order:-1;border:2px solid #6d3fd1;padding:14px 20px}
+  #impactBar>.ib-cell:nth-child(2) span{color:#6d3fd1;font-weight:800}
+  #impactBar>.ib-cell:nth-child(2) b{font-size:40px}
+  #impactBar>.ib-cell:nth-child(2) span::after{content:" · bilan"}
+
+  /* Barre latérale : Sync, Exporter, Réglages ; le reste derrière « Réglages » */
+  #btnReglages{display:flex!important}
+  #hdrActions #btnTheme,#hdrActions #ambianceSelect,#hdrActions [onclick^="exportJSON"],#hdrActions>label{display:none!important}
+  #hdrActions.open #btnTheme,#hdrActions.open #ambianceSelect,#hdrActions.open [onclick^="exportJSON"],#hdrActions.open>label{display:flex!important}
+  #hdrActions>#btnReglages{order:99}
+
+  /* Historique : un seul bouton principal */
+  button[onclick="ouvrirScores()"],button[onclick="ouvrirGenerateurCombines()"],button[onclick="ouvrirVerifComp()"]{
+    background:var(--card)!important;color:var(--txt)!important;border:1px solid var(--line)!important;box-shadow:none!important}
+  button[onclick="ouvrirVerif()"]{background:var(--acc)!important;color:var(--onacc)!important;box-shadow:none!important}
+
+  /* « + Pari » ouvre le formulaire dans une fenêtre */
+  #mainGrid{grid-template-columns:minmax(0,1fr)!important}
+  #mainGrid.form-replie #formCard{display:none!important}
+  #mainGrid:not(.form-replie) #formCard{position:fixed;z-index:200;top:50%;left:calc(50% + 120px);transform:translate(-50%,-50%);
+    width:min(580px,90vw);max-height:90vh;overflow:auto;grid-column:auto!important}
+  #mainGrid:not(.form-replie)::before{content:"";position:fixed;inset:0;background:rgba(16,35,59,.45);z-index:199}
+}
+@media (min-width:1100px){
+  /* Stats combinés : uniquement dans l'onglet Stats */
+  body:not([data-page=stats]) #comboStatsDetails{display:none!important}
+}
+
+/* ===== Mode intégré dans Statify (prono.html?embed=1) ===== */
+html.embed #gnav,html.embed #ambianceCanvas,html.embed #btnReglages{display:none!important}
+html.embed body{padding:10px 12px 16px!important}
+html.embed #appRoot{max-width:none!important}
+html.embed #appRoot>div:has(>#btnViewTracker){display:none!important}
+html.embed body:not([data-page=reglages]) #appRoot>div.surface:first-child{display:none!important}
+html.embed #hdrActions{position:static!important;width:auto!important;display:flex!important;flex-direction:row!important;flex-wrap:wrap;align-items:center!important;background:none!important;border:0!important;padding:0!important;gap:8px!important}
+html.embed #hdrActions>*{width:auto!important;flex:none!important}
+html.embed #hdrActions #btnTheme,html.embed #hdrActions #ambianceSelect,html.embed #hdrActions [onclick^="exportJSON"],html.embed #hdrActions>label{display:flex!important}
+html.embed body[data-page=reglages] #analyzerViewContent,html.embed body[data-page=reglages] #colG>:not(#quickSettle),html.embed body[data-page=reglages] #colD,html.embed body[data-page=reglages] #colD~*,html.embed body[data-page=reglages] #resumeJour,html.embed body[data-page=reglages] #vueTabs,html.embed body[data-page=reglages] #impactBar{display:none!important}
+html.embed body[data-page=reglages] #trackerViewContent{display:block!important}
+html.embed body[data-page=reglages] #quickSettle{max-width:900px}
+html.embed #mainGrid:not(.form-replie) #formCard{left:50%!important}
