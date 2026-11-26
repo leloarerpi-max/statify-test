@@ -2882,7 +2882,7 @@ let parisBusy=false, parisAgain=false, parisLocalH='';
 const parisHash=s=>{ let n=0; for(let i=0;i<s.length;i++) n=(n*31+s.charCodeAt(i))|0; return String(n); };
 const parisRead=()=>{ try{ return JSON.parse(localStorage.getItem(PARIS_KEY))||{}; }catch(e){ return {}; } };
 function parisItems(S){ const o={};
-  [['football','f'],['tennis','t']].forEach(([sp,p])=>{ (Array.isArray(S[sp])?S[sp]:[]).forEach(b=>{ if(b&&b.id!=null) o[p+':'+b.id]=b; });
+  [['football','f'],['tennis','t'],['basketball','b']].forEach(([sp,p])=>{ (Array.isArray(S[sp])?S[sp]:[]).forEach(b=>{ if(b&&b.id!=null) o[p+':'+b.id]=b; });
     ((S.combos&&Array.isArray(S.combos[sp]))?S.combos[sp]:[]).forEach(c=>{ if(c&&c.id!=null) o['c'+p+':'+c.id]=c; }); });
   return o; }
 async function parisFind(force){
@@ -2913,8 +2913,8 @@ async function parisSync(why){
         const kept=old.filter(x=>live(p+':'+x.id)).map(x=>res[p+':'+x.id].v), seen=new Set(old.map(x=>p+':'+x.id));
         const added=Object.keys(res).filter(k=>k.startsWith(p+':')&&live(k)&&!seen.has(k)).map(k=>res[k].v);
         return [...added,...kept]; };
-    const N=Object.assign({},S); N.football=put(S.football,'f'); N.tennis=put(S.tennis,'t');
-    N.combos=Object.assign({},S.combos||{}); N.combos.football=put((S.combos||{}).football,'cf'); N.combos.tennis=put((S.combos||{}).tennis,'ct');
+    const N=Object.assign({},S); N.football=put(S.football,'f'); N.tennis=put(S.tennis,'t'); if(Array.isArray(S.basketball)||Object.keys(res).some(k=>k.startsWith('b:'))) N.basketball=put(S.basketball,'b');
+    N.combos=Object.assign({},S.combos||{}); N.combos.football=put((S.combos||{}).football,'cf'); N.combos.tennis=put((S.combos||{}).tennis,'ct'); if(Array.isArray((S.combos||{}).basketball)||Object.keys(res).some(k=>k.startsWith('cb:'))) N.combos.basketball=put((S.combos||{}).basketball,'cb');
     const before=JSON.stringify(S), after=JSON.stringify(N), localChanged=before!==after;
     if(localChanged){ const cur=localStorage.getItem(PARIS_KEY); if(cur!==null&&cur!==before){ parisAgain=true; return false; }   // modifié pendant la synchro : on recommence
       try{ localStorage.setItem(PARIS_KEY,after); }catch(e){} }

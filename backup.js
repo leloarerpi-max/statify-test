@@ -18,7 +18,8 @@
     const st = lsJ(PRONO_KEY, {});
     return {
       football: Array.isArray(st.football) ? st.football : [],
-      combos: { football: (st.combos && Array.isArray(st.combos.football)) ? st.combos.football : [] },
+      basketball: Array.isArray(st.basketball) ? st.basketball : [],
+      combos: { football: (st.combos && Array.isArray(st.combos.football)) ? st.combos.football : [], basketball: (st.combos && Array.isArray(st.combos.basketball)) ? st.combos.basketball : [] },
       tennis: tennisBets(),
       pronoSettings: pronoSettings()
     };
@@ -58,7 +59,8 @@
     const ps = pronoState || lsJ(PRONO_KEY, {});
     return Object.assign({ v: 4, app: 'statify+prono', date: new Date().toISOString() }, cache, {
       football: Array.isArray(ps.football) ? ps.football : [],
-      combos: { football: (ps.combos && Array.isArray(ps.combos.football)) ? ps.combos.football : [] },
+      basketball: Array.isArray(ps.basketball) ? ps.basketball : [],
+      combos: { football: (ps.combos && Array.isArray(ps.combos.football)) ? ps.combos.football : [], basketball: (ps.combos && Array.isArray(ps.combos.basketball)) ? ps.combos.basketball : [] },
       tennis: tennisBets(),
       pronoSettings: pronoSettings()
     });
@@ -85,6 +87,12 @@
       return ' · Pronos : non restaurés';
     st.football = bets.list;
     st.combos = Object.assign({}, st.combos || {}, { football: combos.list });
+    // basket : même fusion par identifiant (rien n'est jamais supprimé)
+    if (Array.isArray(d.basketball) && d.basketball.length) {
+      const bb = merge(Array.isArray(st.basketball) ? st.basketball : [], d.basketball);
+      st.basketball = bb.list;
+      st.combos.basketball = merge((st.combos && Array.isArray(st.combos.basketball)) ? st.combos.basketball : [], (d.combos && Array.isArray(d.combos.basketball)) ? d.combos.basketball : []).list;
+    }
     try { localStorage.setItem(PRONO_KEY, JSON.stringify(st)); } catch (e) { return ' · Pronos : stockage plein, non restaurés'; }
     const set = d.pronoSettings || {};
     for (const k of Object.keys(set)) { if (SETTINGS_RE.test(k)) { try { localStorage.setItem(k, String(set[k])); } catch (e) {} } }

@@ -192,7 +192,7 @@
   };
   function donnees(sport) {
     sport = sport || 'football';
-    const TN = sport === 'tennis', trouver = b => TN ? null : trouverM(b), etat = (b, m) => TN ? (b.status === 'Won' ? 'won' : b.status === 'Lost' ? 'lost' : 'pre') : etatM(b, m);
+    const TN = sport === 'tennis' || sport === 'basketball', trouver = b => TN ? null : trouverM(b), etat = (b, m) => TN ? (b.status === 'Won' ? 'won' : b.status === 'Lost' ? 'lost' : 'pre') : etatM(b, m);
     const S = lire(), bets = S[sport] || [], combos = ((S.combos || {})[sport]) || [];
     const parId = new Map(bets.map(b => [String(b.id), b]));
     const C = combos.map(c => {
@@ -343,17 +343,21 @@
   const FLGN = { 'fra.1': 'Ligue 1', 'eng.1': 'Premier League', 'esp.1': 'Liga', 'ita.1': 'Serie A', 'ger.1': 'Bundesliga', 'uefa.champions': 'Ligue des champions', 'uefa.europa': 'Europa League', 'uefa.europa.conf': 'Conférence League' };
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const refusSet = () => { try { return new Set(JSON.parse(lsGet(REFUS) || '[]').map(String)); } catch (e) { return new Set(); } };
-  const SP = () => (typeof ui !== 'undefined' && ui.sport === 'tennis') ? 'tennis' : 'football';
+  // sport choisi dans Mes paris (Tous / Foot / Basket / Tennis) ; 'tous' agit comme le foot pour les actions
+  const MPSP = 'pronotracker_mp_sport';
+  let mpSp = (() => { const v = lsGet(MPSP); return ['tous', 'football', 'basketball', 'tennis'].includes(v) ? v : 'tous'; })();
+  const SP = () => window.__pzVue ? (mpSp === 'tous' ? 'football' : mpSp) : ((typeof ui !== 'undefined' && ui.sport === 'tennis') ? 'tennis' : 'football');
+  const BASKET_M = ['Vainqueur (prol. incl.)', 'Handicap', 'Total points', 'Total équipe', 'Mi-temps', 'Joueur', 'Autre'];
   const TENNIS_M = ['Vainqueur du match', 'Vainqueur du 1er set', 'Handicap jeux', 'Total jeux', 'Nombre de sets', 'Autre'];
-  const marches = () => { if (SP() === 'tennis') return TENNIS_M.slice(); try { const s = JSON.parse(lsGet(MARCHES)); if (Array.isArray(s) && s.length) return s; } catch (e) {} return ['1N2', 'BTTS', 'Over/Under', 'Buteur', 'Mi-Temps', 'Autre']; };
+  const marches = () => { if (SP() === 'tennis') return TENNIS_M.slice(); if (SP() === 'basketball') return BASKET_M.slice(); try { const s = JSON.parse(lsGet(MARCHES)); if (Array.isArray(s) && s.length) return s; } catch (e) {} return ['1N2', 'BTTS', 'Over/Under', 'Buteur', 'Mi-Temps', 'Autre']; };
   const jourDe = iso => { const d = new Date(iso); return isNaN(d) ? jour() : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const norm = s => mots(s).join(' ');
   let sel = new Set(), miseCombo = null, toastT = null;
 
-  function lireN() { const S = lire(); ['football', 'tennis'].forEach(k => { if (!Array.isArray(S[k])) S[k] = []; }); if (!S.combos) S.combos = {}; ['football', 'tennis'].forEach(k => { if (!Array.isArray(S.combos[k])) S.combos[k] = []; }); return S; }
+  function lireN() { const S = lire(); ['football', 'tennis', 'basketball'].forEach(k => { if (!Array.isArray(S[k])) S[k] = []; }); if (!S.combos) S.combos = {}; ['football', 'tennis', 'basketball'].forEach(k => { if (!Array.isArray(S.combos[k])) S.combos[k] = []; }); return S; }
   function sauver(S) {
-    ['football', 'tennis'].forEach(k => { if (!Array.isArray(S[k])) S[k] = []; });
-    if (!S.combos) S.combos = {}; ['football', 'tennis'].forEach(k => { if (!Array.isArray(S.combos[k])) S.combos[k] = []; });
+    ['football', 'tennis', 'basketball'].forEach(k => { if (!Array.isArray(S[k])) S[k] = []; });
+    if (!S.combos) S.combos = {}; ['football', 'tennis', 'basketball'].forEach(k => { if (!Array.isArray(S.combos[k])) S.combos[k] = []; });
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
     cache = null; if (window.syncSchedule) { try { window.syncSchedule(); } catch (e) {} }
   }
@@ -476,6 +480,7 @@
   }
   // suggestions de pronostic sous le champ, d'après le match et le marché (comme PronoTracker)
   function suggestions(match, market) {
+    if (SP() === 'basketball') { const q = String(match || '').split(/\s+vs\.?\s+|\s+-\s+/i).map(x => x.trim()).filter(Boolean), m = String(market || '').toLowerCase(); if (/vainqueur/.test(m)) return q.length === 2 ? q : []; if (/handicap/.test(m)) return q.length === 2 ? [q[0] + ' -5,5', q[1] + ' +5,5'] : []; if (/total/.test(m)) return ['Plus de 220,5 pts', 'Moins de 220,5 pts']; return []; }
     const p = String(match || '').split(/\s+vs\.?\s+|\s+-\s+/i).map(x => x.trim()).filter(Boolean), t = p.length === 2 ? p : null, m = String(market || '').toLowerCase();
     if (/1n2|résultat|vainqueur/.test(m)) return t ? [t[0], 'Match nul', t[1]] : [];
     if (/btts|deux\s+équipes?\s+marquent/.test(m)) return ['Les deux équipes marquent', 'Une équipe ne marque pas'];
@@ -491,17 +496,17 @@
     const b = opt.id != null ? L.find(x => String(x.id) === String(opt.id)) : null;
     const mk = marches(); if (b && b.market && !mk.includes(b.market)) mk.push(b.market);
     const v = b || { date: opt.date || jour(), match: opt.match || '', comp: opt.comp || '', market: opt.market && mk.includes(opt.market) ? opt.market : (opt.market ? (mk.push(opt.market), opt.market) : mk[0]), prono: '', odds: '', stake: opt.stake != null ? +opt.stake : ((L[0] && +L[0].stake) || 1) };
-    const noms = [...new Set(matchs().map(m => m.hn + ' vs ' + m.an))];
-    const comps = [...new Set(L.map(x => (x.comp || '').trim()).filter(Boolean).concat(Object.values(FLGN)))];
+    const BK = SP() === 'basketball', noms = BK ? [] : [...new Set(matchs().map(m => m.hn + ' vs ' + m.an))];
+    const comps = [...new Set(L.map(x => (x.comp || '').trim()).filter(Boolean).concat(BK ? ['NBA', 'Euroligue'] : Object.values(FLGN)))];
     const pronos = [...new Set(L.map(x => x.prono).filter(Boolean))].slice(0, 80);
     const dl = (id, a) => `<datalist id="${id}">${a.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`;
     ov(`<div class="pz-fm" data-new="${b ? 0 : 1}"><h3>${b ? 'Modifier le pari' : '🎯 Nouveau pari'}</h3>
       <div class="pz-fg">
         <label class="pz-f"><span>Date</span><input id="pz-d" type="date" value="${esc(v.date)}"></label>
-        <label class="pz-f"><span>Championnat</span><input id="pz-c" list="pz-lc" value="${esc(v.comp)}" autocomplete="off"></label>
+        <label class="pz-f"><span>${BK ? 'Compétition' : 'Championnat'}</span><input id="pz-c" list="pz-lc" value="${esc(v.comp)}" autocomplete="off"></label>
         <label class="pz-f w"><span>Match</span><input id="pz-m" list="pz-lm" placeholder="Équipe A vs Équipe B" value="${esc(v.match)}" autocomplete="off"></label>
         <label class="pz-f"><span>Marché</span><select id="pz-k">${mk.map(x => `<option${x === v.market ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
-        <label class="pz-f"><span>Pronostic</span><input id="pz-p" list="pz-lp" placeholder="Ex. Plus de 2.5 buts" value="${esc(v.prono)}" autocomplete="off"></label>
+        <label class="pz-f"><span>Pronostic</span><input id="pz-p" list="pz-lp" placeholder="${BK ? 'Ex. Celtics -6,5' : 'Ex. Plus de 2.5 buts'}" value="${esc(v.prono)}" autocomplete="off"></label>
         <div class="pz-f w pz-sugg" id="pz-sugg">${suggestions(v.match, v.market).map(x => `<button class="sec pz-ib" data-pz="sugg" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
         <label class="pz-f"><span>Cote</span><input id="pz-o" type="number" step="0.01" min="1.01" inputmode="decimal" value="${esc(v.odds)}"></label>
         <label class="pz-f"><span>Mise (€)</span><input id="pz-s" type="number" step="0.5" min="0.1" inputmode="decimal" value="${esc(v.stake)}"></label>
@@ -1318,7 +1323,7 @@
     if (!force && foc && v.contains(foc) && /^(INPUT|TEXTAREA)$/.test(foc.tagName) && foc.type !== 'checkbox') return;   // ne pas casser la saisie en cours
     if (v.__pzH !== html || !v.querySelector('.pz-view')) { v.innerHTML = html; v.__pzH = html; }
   }
-  function vueParis(D) {
+  function vueParis(D) {   // eslint-disable-line
     const v = document.getElementById('view'); if (!v) return;
     { const an = filtre === 'analyse' && window.innerWidth >= 1100; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', an ? b.dataset.act === 'pzanalyse' : b.dataset.act === 'pronos')); }
     ['railL', 'railR'].forEach(id => { const r = document.getElementById(id); if (r) r.innerHTML = ''; });
@@ -1330,23 +1335,73 @@
       return;
     }
     window.__pzFrame = false;
+    // sport affiché : Tous / Foot / Basket / Tennis (les pages Analyseur et Réglages ne dépendent pas du sport)
+    const parSport = ['cours', 'hist', 'combos', 'stats'].includes(filtre), tousV = parSport && mpSp === 'tous';
+    if (parSport && (mpSp === 'basketball' || mpSp === 'tennis')) D = donnees(mpSp);
     const auto = lsGet(AUTO) === '1', T = filtre === 'tennis' ? donnees('tennis') : D;
-    const ban = (filtre === 'cours' || filtre === 'hist') && D.aRegler.length && !auto ? `<div class="pz-ban"><span>✅ ${D.aRegler.length} pari${D.aRegler.length > 1 ? 's' : ''} peu${D.aRegler.length > 1 ? 'vent' : 't'} être réglé${D.aRegler.length > 1 ? 's' : ''} d'après les scores finaux.</span><button data-pz="regleall">Tout régler</button></div>` : '';
-    const tf = ['cours', 'hist', 'combos', 'stats'].includes(filtre) ? tennisDansFoot() : { n: 0 };
+    const ban = (filtre === 'cours' || filtre === 'hist') && !tousV && D.aRegler.length && !auto ? `<div class="pz-ban"><span>✅ ${D.aRegler.length} pari${D.aRegler.length > 1 ? 's' : ''} peu${D.aRegler.length > 1 ? 'vent' : 't'} être réglé${D.aRegler.length > 1 ? 's' : ''} d'après les scores finaux.</span><button data-pz="regleall">Tout régler</button></div>` : '';
+    const tf = ['cours', 'hist', 'combos', 'stats'].includes(filtre) && SP() === 'football' ? tennisDansFoot() : { n: 0 };
     const mx = tf.mixtes ? tf.mixtes + ' combiné' + (tf.mixtes > 1 ? 's' : '') + ' mêlant foot et tennis ' + (tf.mixtes > 1 ? 'restent' : 'reste') + ' à vérifier à la main (défais-' + (tf.mixtes > 1 ? 'les' : 'le') + ' puis range chaque pari dans son sport).' : '';
     const ban2 = (tf.n || tf.mixtes) ? `<div class="pz-ban"><span>🎾 ${tf.n ? tf.n + ' pari' + (tf.n > 1 ? 's' : '') + ' de tennis ' + (tf.n > 1 ? 'sont rangés' : 'est rangé') + ' dans le foot. ' : ''}${mx}</span>${tf.n ? '<button data-pz="totennis">Déplacer vers Tennis</button>' : ''}</div>` : '';
-    const barre = filtre === 'cours' ? barreCombine(D) : '';
-    const ligne = `<div class="row pz-tabs pz-tabrow">${ongletsHtml(D)}${filtre === 'cours' || filtre === 'hist' ? `<button class="sec pz-ib" data-pz="paste" title="Coller plusieurs paris d'un coup">📋 Coller</button><button class="pz-new" data-pz="new" title="Ajouter un pari"><span>＋</span> Nouveau pari</button>` : ''}</div>`;
+    const barre = filtre === 'cours' && !tousV ? barreCombine(D) : '';
+    const chipsSp = parSport ? puces(mpSp, [['tous', '🌍 Tous'], ['football', '⚽ Foot'], ['basketball', '🏀 Basket'], ['tennis', '🎾 Tennis']], 'mpsp') : '';
+    const ligne = `<div class="row pz-tabs pz-tabrow">${ongletsHtml(D)}${(filtre === 'cours' || filtre === 'hist') && !tousV ? `<button class="sec pz-ib" data-pz="paste" title="Coller plusieurs paris d'un coup">📋 Coller</button><button class="pz-new" data-pz="new" title="Ajouter un pari"><span>＋</span> Nouveau pari${SP() === 'basketball' ? ' basket' : ''}</button>` : ''}</div>`;
     let haut = '', corps = '';
-    if (filtre === 'cours') { haut = bilan(D, true); corps = impactEtResume(D) + (autoInfo && SP() === 'football' ? `<div class="pz-ban" id="pz-autoinfo"><span>${esc(autoInfo)}</span>${autoInfo.startsWith('⏳') ? '<button data-pz="autonow">Combiner maintenant</button>' : ''}</div>` : '') + corpsCours(D); }
+    if (tousV) { const X = vueTous(filtre, D); haut = X.haut; corps = X.corps; }
+    else if (filtre === 'cours') { haut = bilan(D, true); corps = impactEtResume(D) + (autoInfo && SP() === 'football' ? `<div class="pz-ban" id="pz-autoinfo"><span>${esc(autoInfo)}</span>${autoInfo.startsWith('⏳') ? '<button data-pz="autonow">Combiner maintenant</button>' : ''}</div>` : '') + corpsCours(D); }
     else if (filtre === 'hist') { haut = bilan(D, true); corps = corpsHist(D); }
     else if (filtre === 'tennis') { haut = bilan(T, true); corps = vueTennisPage(T); }
-    else if (filtre === 'analyse') corps = vueAnalyse();
+    else if (filtre === 'analyse') corps = SP() === 'basketball' ? '' : vueAnalyse();
     else if (filtre === 'combos') corps = vueCombinesPage(D);
     else if (filtre === 'stats') corps = vueStatsPage();
     else corps = vueReglagesPage();
-    const html = `<div class="pz-view">${haut}${ligne}${ban}${ban2}${corps}${barre}${barre ? '<div class="pz-sp"></div>' : ''}</div>`;
+    const html = `<div class="pz-view">${haut}${ligne}${chipsSp}${ban}${ban2}${corps}${barre}${barre ? '<div class="pz-sp"></div>' : ''}</div>`;
     poser(v, html, window.__pzForce);
+  }
+
+
+  /* ---------- Vue « Tous les sports » : foot, basket et tennis au même endroit ---------- */
+  const SPORTS_T = [['football', '⚽', 'FOOT'], ['basketball', '🏀', 'BASKET'], ['tennis', '🎾', 'TENNIS']];
+  const E_EMO = { won: '✅', lost: '❌', ok: '🟢', live: '🔴', pre: '⏳', end: '❔', nf: '➖', rep: '⏸️' };
+  const reglee = b => b.status === 'Won' || b.status === 'Lost';
+  function statsSport(D) {
+    const sing = D.solos.filter(s => reglee(s.b)), cmb = D.C.filter(x => x.regle);
+    const n = sing.length + cmb.length, g = sing.filter(s => s.b.status === 'Won').length + cmb.filter(x => x.legs.every(l => l.b.status === 'Won')).length;
+    const mise = sing.reduce((t, s) => t + (+s.b.stake || 0), 0) + D.miseC, net = D.netS + D.netC;
+    return { n, g, mise, net, roi: mise ? 100 * net / mise : 0, att: D.nbAttente };
+  }
+  function vueTous(page, Df) {
+    const Ds = SPORTS_T.map(([k, emo, lab]) => ({ k, emo, lab, D: k === 'football' && Df ? Df : donnees(k) }));
+    const T = Ds.map(x => Object.assign({ x }, statsSport(x.D)));
+    const tot = T.reduce((a, t) => ({ n: a.n + t.n, g: a.g + t.g, mise: a.mise + t.mise, net: a.net + t.net, att: a.att + t.att }), { n: 0, g: 0, mise: 0, net: 0, att: 0 });
+    const siTout = Ds.reduce((t, x) => t + (+x.D.siTout || 0), 0), auj = jour();
+    const miseJ = Ds.reduce((t, x) => t + x.D.solos.concat([]).filter(s => s.b.date === auj).reduce((a, s) => a + (+s.b.stake || 0), 0) + x.D.C.filter(c => c.legs.some(l => l.b.date === auj)).reduce((a, c) => a + c.stake, 0), 0);
+    const kp = (l, v, c, sub) => `<div class="pz-k"><span>${l}</span><b class="${c || ''}">${v}</b>${sub ? `<small class="mut">${sub}</small>` : ''}</div>`;
+    const haut = `<div class="pz-bil pz-tous">${kp('Misé aujourd\'hui', miseJ.toFixed(2).replace('.', ',') + ' €')}${kp('Si tout passe aujourd\'hui', eur(siTout), 'pz-pos')}${kp('Bilan réglé', eur(tot.net), tot.net < 0 ? 'pz-neg' : 'pz-pos', 'ROI ' + (tot.mise ? (100 * tot.net / tot.mise).toFixed(1).replace('.', ',') : '0,0') + ' %')}${kp('En attente', tot.att, '', tot.n ? 'Réussite ' + Math.round(100 * tot.g / tot.n) + ' %' : '')}</div>`;
+    const badge = (k, emo, lab) => `<span class="pz-sb pz-sb-${k}" title="${lab}">${emo} ${lab}</span>`;
+    const ligne = (k, emo, lab, date, titre, prono, odds, stake, etat, txt) => `<div class="pz-tr" data-pz="mpsp" data-k="${k}" title="Ouvrir ${lab.toLowerCase()}">${badge(k, emo, lab)}<span class="mut pz-trd">${esc(date || '')}</span><b class="pz-trm">${esc(titre)}</b><span class="pz-trp">${esc(prono || '')}</span><b>${cote(odds)}</b><span class="mut">${(+stake || 0).toString().replace('.', ',')} €</span><span class="pz-st pz-${etat}">${E_EMO[etat] || ''} ${esc(txt)}</span></div>`;
+    const lignesDe = (ouvert) => {
+      const L = [];
+      Ds.forEach(({ k, emo, lab, D }) => {
+        D.solos.filter(s => ouvert ? !reglee(s.b) : reglee(s.b)).forEach(s => L.push({ d: s.b.date || '', html: ligne(k, emo, lab, s.b.date, s.b.match, s.b.prono, s.b.odds, s.b.stake, s.b.status === 'Won' ? 'won' : s.b.status === 'Lost' ? 'lost' : (s.e || 'pre'), s.b.status === 'Won' ? 'gagné' : s.b.status === 'Lost' ? 'perdu' : ({ live: 'en direct', ok: 'ça passe', pre: 'à venir', end: 'à régler', nf: 'à venir', rep: 'reporté', won: 'ça passe', lost: 'perdu' }[s.e] || 'à venir')) }));
+        D.C.filter(x => ouvert ? !x.regle : x.regle).forEach(x => { let e = 'pre', t = 'à venir'; try { [e, t] = etatCombo(x); } catch (er) {} L.push({ d: x.jour || '', html: ligne(k, emo, lab, x.jour, 'Combiné · ' + x.legs.length + ' paris', x.legs.map(l => l.b.prono).filter(Boolean).join(' + '), x.odds, x.stake, e, t) }); });
+      });
+      return L;
+    };
+    let corps = '';
+    if (page === 'cours') {
+      const L = lignesDe(true).sort((a, b) => String(a.d).localeCompare(String(b.d)));
+      corps = `<div class="card pz-card-tous"><h2>En cours · tous les sports <span class="mut pz-hint">· touche une ligne pour ouvrir le sport</span></h2>${L.length ? L.map(x => x.html).join('') : '<p class="mut">Aucun pari en cours.</p>'}<p class="mut pz-hint" style="margin-top:8px">Les combinés restent par sport : un combiné ne mélange jamais foot, basket et tennis.</p></div>`;
+    } else if (page === 'hist') {
+      const L = lignesDe(false).sort((a, b) => String(b.d).localeCompare(String(a.d)));
+      corps = `<div class="card pz-card-tous"><h2>Historique · tous les sports</h2>${L.slice(0, 60).map(x => x.html).join('') || '<p class="mut">Aucun pari réglé.</p>'}${L.length > 60 ? `<p class="mut pz-hint">${L.length - 60} paris plus anciens : ouvre un sport pour tout voir.</p>` : ''}</div>`;
+    } else if (page === 'stats') {
+      const rowS = t => `<tr><td class="l">${t.x.emo} ${t.x.lab}</td><td>${t.n}</td><td>${t.g}</td><td>${t.n ? Math.round(100 * t.g / t.n) + ' %' : '–'}</td><td>${t.mise.toFixed(2).replace('.', ',')} €</td><td class="${t.net < 0 ? 'pz-neg' : 'pz-pos'}">${eur(t.net)}</td><td>${t.mise ? t.roi.toFixed(1).replace('.', ',') + ' %' : '–'}</td></tr>`;
+      corps = `<div class="card pz-card-tous"><h2>Bilan par sport</h2><div class="pz-tbw"><table class="pz-tb"><thead><tr><th class="l">Sport</th><th>Réglés</th><th>Gagnés</th><th>Réussite</th><th>Misé</th><th>Net</th><th>ROI</th></tr></thead><tbody>${T.map(rowS).join('')}</tbody></table></div><p class="mut pz-hint">ROI = gain net ÷ somme misée sur les paris réglés (simples et combinés). Choisis un sport pour le détail.</p></div>` + vueStatsPage();
+    } else {
+      corps = `<div class="card pz-card-tous"><h2>Combinés par sport</h2>${Ds.map(({ k, emo, lab, D }) => `<div class="pz-tr" data-pz="mpsp" data-k="${k}">${badge(k, emo, lab)}<b class="pz-trm">${D.C.filter(x => !x.regle).length} combiné(s) en cours</b><span class="mut">${D.C.filter(x => x.regle).length} réglé(s)</span></div>`).join('')}<p class="mut pz-hint" style="margin-top:8px">Un combiné ne mélange jamais deux sports. Choisis un sport pour voir, créer ou défaire ses combinés.</p></div>`;
+    }
+    return { haut, corps };
   }
 
   /* ---------- Pages natives : Combinés, Stats, Tennis, Réglages ---------- */
@@ -1434,13 +1489,13 @@
   function stGenExclus() { try { const p = JSON.parse(lsGet('pronotracker_gen_pref') || 'null'); if (p && Array.isArray(p.exclus)) return new Set(p.exclus); } catch (e) {} return new Set(['Ligue 2', 'Ligue Europa', 'Ligue Conférence', 'Ligue Europa Q', 'Ligue Conférence Q']); }
 
   function vueStatsPage() {
-    const sp = stSport === 'tennis' ? 'tennis' : 'football', S = lireN(), tous = S[sp] || [], foot = sp === 'football';
+    const ssp = mpSp !== 'tous' ? mpSp : stSport, sp = ['tennis', 'basketball'].includes(ssp) ? ssp : 'football', S = lireN(), tous = S[sp] || [], foot = sp === 'football';
     const lim = stPer ? new Date(Date.now() - stPer * 864e5).toISOString().slice(0, 10) : '';
     const perOk = b => !lim || (b.date || '') >= lim;
     const compOk = b => { if (!stComp.size) return true; const k = (b.comp || 'Non spécifié').trim(); return stMode === 'exclude' ? !stComp.has(k) : stComp.has(k); };
     const base = tous.filter(b => perOk(b) && compOk(b));                                   // alimente le Bilan, la courbe et les jours
     const kpi = base.filter(b => (!stMk || (b.market || 'Autre') === stMk) && (!stCo || stBr(+b.odds || 1) === stCo));
-    const sw = puces(stSport, [['football', '⚽ Foot'], ['tennis', '🎾 Tennis']], 'stsp') + puces(stPer, [[0, 'Tout'], [7, '7 jours'], [30, '30 jours']], 'stper');
+    const sw = (mpSp === 'tous' ? puces(stSport, [['football', '⚽ Foot'], ['basketball', '🏀 Basket'], ['tennis', '🎾 Tennis']], 'stsp') : '') + puces(stPer, [[0, 'Tout'], [7, '7 jours'], [30, '30 jours']], 'stper');
 
     // combinés du sport (indépendants des filtres du Bilan, comme dans PronoTracker)
     const combos = ((S.combos || {})[sp] || []).map(c => {
@@ -1931,7 +1986,7 @@
   function ancre(blob, nom) { const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = nom; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 1500); }
   function vueExport() {
     const d = ehDonnees(), vide = !d.bets.length && !d.combos.length, ch = (on, l, k, v) => `<button class="${on ? '' : 'sec'} pz-ib" data-pz="eh" data-k="${k}" data-v="${v || ''}">${l}</button>`;
-    ov(`<div class="pz-fm"><h3>📊 Exporter l'historique (${d.sp === 'tennis' ? 'tennis' : 'foot'})</h3>
+    ov(`<div class="pz-fm"><h3>📊 Exporter l'historique (${d.sp === 'tennis' ? 'tennis' : d.sp === 'basketball' ? 'basket' : 'foot'})</h3>
       <h3 class="pz-h3">Période</h3><div class="row pz-chips">${[['tout', 'Tout'], ['7', '7 jours'], ['30', '30 jours'], ['mois', 'Ce mois-ci'], ['mois-1', 'Mois dernier'], ['perso', 'Dates…']].map(([k, l]) => ch(EH.per === k, l, 'per', k)).join('')}</div>
       ${EH.per === 'perso' ? `<div class="pz-fa" style="margin:6px 0 0"><span class="mut">Du</span><input id="pz-eh-du" class="pz-sel" type="date" value="${esc(EH.du)}"><span class="mut">au</span><input id="pz-eh-au" class="pz-sel" type="date" value="${esc(EH.au)}"></div>` : ''}
       <h3 class="pz-h3">Statuts</h3><div class="row pz-chips">${[['Won', 'Gagnés'], ['Lost', 'Perdus'], ['Pending', 'En cours'], ['Autre', 'Annulés']].map(([k, l]) => ch(EH.st[k], l, 'st', k)).join('')}</div>
@@ -2106,7 +2161,7 @@
   }
   function exporterCsv() {
     const S = lireN(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"', rows = [['Sport', 'Date', 'Match', 'Compétition', 'Marché', 'Pronostic', 'Cote', 'Mise', 'Statut', 'Type', 'Combiné']];
-    ['football', 'tennis'].forEach(sp => (S[sp] || []).forEach(b => rows.push([sp, b.date, b.match, b.comp, b.market, b.prono, b.odds, b.stake, b.status, b.comboId ? 'Combiné' : 'Simple', b.comboId || ''])));
+    ['football', 'tennis', 'basketball'].forEach(sp => (S[sp] || []).forEach(b => rows.push([sp, b.date, b.match, b.comp, b.market, b.prono, b.odds, b.stake, b.status, b.comboId ? 'Combiné' : 'Simple', b.comboId || ''])));
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + rows.map(r => r.map(q).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' })); a.download = 'mes-paris.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
@@ -2190,6 +2245,12 @@
   }
   @media (max-width:700px){.pz-big{grid-template-columns:1fr 1fr}.pz-big .pz-sit{grid-column:1/-1;flex-direction:row!important;align-items:center;justify-content:space-between}.pz-big .pz-k b{font-size:17px}.pz-big .pz-main b{font-size:32px}.pz-big .pz-k{padding:9px 10px}.pz-big .pz-k span{font-size:9.5px}.pz-big .pz-main{grid-column:1/-1}.pz-note{display:none}.pz-grid{grid-template-columns:1fr}}`;
   const st = document.createElement('style'); st.textContent = css + `
+  .pz-sb{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:7px;white-space:nowrap;background:color-mix(in srgb,var(--ok) 16%,transparent)}
+  .pz-sb-basketball{background:color-mix(in srgb,#e07a1a 18%,transparent)}.pz-sb-tennis{background:color-mix(in srgb,#8a3fb0 16%,transparent)}
+  .pz-tr{display:grid;grid-template-columns:96px 78px minmax(120px,1.4fr) minmax(90px,1.2fr) 50px 54px auto;gap:8px;align-items:center;padding:9px 4px;border-top:1px solid var(--line);cursor:pointer;font-size:13px}
+  .pz-tr:hover{background:color-mix(in srgb,var(--ok) 6%,transparent)}.pz-card-tous .pz-tr:first-of-type{border-top:0}
+  .pz-tous{margin-bottom:10px}.pz-trm,.pz-trp{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  @media (max-width:700px){.pz-tr{grid-template-columns:auto 1fr auto;grid-template-areas:'b d s' 'm m m' 'p o k'}.pz-tr .pz-sb{grid-area:b}.pz-tr .pz-trd{grid-area:d}.pz-tr>.pz-st{grid-area:s}.pz-tr .pz-trm{grid-area:m;white-space:normal}.pz-tr .pz-trp{grid-area:p}}
   .pz-add{margin-left:auto;font-size:12px}.pz-add+.pz-all{margin-left:10px}
   .pz-act{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}.pz-ib{padding:3px 9px!important;font-size:12px!important;border-radius:10px!important;box-shadow:none!important}
   .pz-onw{background:color-mix(in srgb,var(--ok) 22%,transparent)!important;color:var(--ok)!important;border-color:var(--ok)!important}.pz-onl{background:color-mix(in srgb,var(--bad) 20%,transparent)!important;color:var(--bad)!important;border-color:var(--bad)!important}
@@ -2246,6 +2307,7 @@
       e.preventDefault(); e.stopImmediatePropagation();
       if (k === 'open') { window.__pzVue = true; decorer(); window.scrollTo(0, 0); }
       else if (k === 'f') { filtre = z.dataset.k; decorer(); }
+      else if (k === 'mpsp') { mpSp = z.dataset.k; try { localStorage.setItem(MPSP, mpSp); } catch (x) {} sel.clear(); if (!['cours', 'hist', 'combos', 'stats'].includes(filtre)) filtre = 'cours'; const v = document.getElementById('view'); if (v) v.__pzH = null; decorer(); window.scrollTo(0, 0); }
       else if (k === 'new') { if (z.dataset.m) { formulaire({ match: z.dataset.m, comp: z.dataset.c, date: z.dataset.d }); } else formulaire(); }
       else if (k === 'edit') formulaire({ id });
       else if (k === 'cancel') fermer();
